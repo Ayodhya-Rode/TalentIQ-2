@@ -4,19 +4,20 @@
   "main": "index.js",
   "type": "module",
   "prisma": {
-  "seed": "node src/scripts/seedSuperAdminSeed.js"
-},
+    "seed": "node src/scripts/seedSuperAdminSeed.js"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon server.js",
     "start": "node server.js",
-     "seed": "node src/scripts/seedSuperAdminSeed.js"
+    "seed": "node src/scripts/seedSuperAdminSeed.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@getbrevo/brevo": "^6.0.3",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "bcryptjs": "^3.0.3",

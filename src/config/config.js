@@ -6,7 +6,10 @@ const requiredEnvVars = [
   "PORT",
   "DB_URl",
   "JWT_SECRET_ACCESS",
-  "JWT_SECRET_REFRESH"
+  "JWT_SECRET_REFRESH",
+  "BREVO_API_KEY",
+  "BREVO_SENDER_EMAIL",
+  
 ];
 // Checks all required variables are present in the environment
 requiredEnvVars.forEach((key) => {
@@ -20,6 +23,11 @@ const config = {
   database_url: process.env.DB_URl,
   jwt_access_secret: process.env.JWT_SECRET_ACCESS,
   jwt_refresh_secret: process.env.JWT_SECRET_REFRESH,
+  brevo:{
+    brevo_api_key: process.env.BREVO_API_KEY,
+    brevo_sender_email: process.env.BREVO_SENDER_EMAIL,
+    
+  }
 };
 
 export default config;
