@@ -2,10 +2,15 @@
   "name": "back",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
+  "prisma": {
+  "seed": "node src/scripts/seedSuperAdminSeed.js"
+},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+     "seed": "node src/scripts/seedSuperAdminSeed.js"
   },
   "keywords": [],
   "author": "",
