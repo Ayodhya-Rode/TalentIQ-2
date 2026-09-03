@@ -6,7 +6,7 @@ import superAdminRoutes from "./routes/superAdminRoutes.js";
 import rateLimit from "express-rate-limit";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import employeeRoutes from "./routes/employeeRoutes.js";
-
+import candidateRoutes from "./routes/candidateRoutes.js";
 
 
 
@@ -28,7 +28,7 @@ app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/super-admin", superAdminRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/employee", employeeRoutes);
-
+app.use("/api/candidate", candidateRoutes);
 
 
 

@@ -30,6 +30,7 @@ model User {
   role      Role
   status    ApprovalStatus @default(PENDING)
   employeeProfile EmployeeProfile?
+  candidateProfile CandidateProfile?
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 }
@@ -88,4 +89,49 @@ model Slot {
 enum SlotStatus {
   OPEN
   BOOKED
+}
+
+
+//CandidateProfile related model
+model CandidateProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  education   String?
+  skills      String?
+  location    String?
+  designation String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  projects     Project[]
+  certificates Certificate[]
+}
+
+model Project {
+  id                 String   @id @default(uuid())
+  candidateProfileId String
+  candidateProfile   CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  link        String?
+  date        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Certificate {
+  id                 String   @id @default(uuid())
+  candidateProfileId String
+  candidateProfile   CandidateProfile @relation(fields: [candidateProfileId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  link        String?
+  date        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
