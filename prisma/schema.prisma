@@ -32,3 +32,10 @@ model User {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 }
+
+// SUPER_ADMIN created categories
+model Category {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}

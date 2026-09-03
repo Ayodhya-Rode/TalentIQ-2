@@ -1,5 +1,6 @@
 import config from "../config/config.js";
 import jwt from "jsonwebtoken";
+import prisma from "../config/db.js";
 
 /**
  * Middleware to verify JWT token and attach user info to request object
@@ -31,7 +32,7 @@ export const verifyToken = async (req, res, next) => {
     req.user = { userId: user.id, role: user.role };
     next();
   } catch (err) {
-    return res.status(401).json({ success: false, message: "Invalid or expired token" });
+    return res.status(401).json({ success: false, message: "Invalid or expired token" , error: err.message });
   }
 };
 
