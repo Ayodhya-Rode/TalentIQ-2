@@ -9,6 +9,9 @@ import { sendEmail } from "../utils/sendEmail.js";
  */
 export const getPendingUsers = async (req, res) => {
   try {
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+
     const pendingUsers = await prisma.user.findMany({
       where: { status: "PENDING" },
       select: {
@@ -22,12 +25,16 @@ export const getPendingUsers = async (req, res) => {
       orderBy: {
         createdAt: "desc",
       },
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
     res.status(200).json({
       success: true,
       message: "Pending users fetched successfully",
       data: pendingUsers,
+      page,
+      limit,
     });
   } catch (err) {
     res.status(500).json({
@@ -196,6 +203,9 @@ export const getAllUsers = async (req, res) => {
   try {
     const { role, status } = req.query;
 
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+
     // Prevent fetching Super Admin users
     if (role === "SUPER_ADMIN") {
       return res.status(400).json({
@@ -221,12 +231,16 @@ export const getAllUsers = async (req, res) => {
       orderBy: {
         createdAt: "desc",
       },
+        skip: (page - 1) * limit,
+  take: limit,
     });
 
     res.status(200).json({
       success: true,
       message: "Users fetched successfully",
       data: users,
+      page,
+      limit,
     });
   } catch (err) {
     res.status(500).json({
