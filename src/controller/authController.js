@@ -78,15 +78,29 @@ export const register = async (req, res) => {
         role,
         status: "PENDING",
       },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
     });
 
     res.status(201).json({
       success: true,
       message: "Registration successful. Waiting for Super Admin approval.",
-      user
+      user,
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: "Registration failed", error: err.message});
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Registration failed",
+        error: err.message,
+      });
   }
 };
 
@@ -172,4 +186,51 @@ export const login = async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, message: "Login failed" });
   }
+};
+
+/**
+ * Refreshes the access token using the refresh token stored in cookies.
+ * @desc Validates the refresh token and issues a new access token if valid.
+ * @route POST /api/auth/refresh
+ * @access Public
+ */
+export const refresh = async (req, res) => {
+  const token = req.cookies.refreshToken;
+  if (!token) {
+    return res.status(401).json({ success: false, message: "No refresh token" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, config.jwt_refresh_secret);
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+
+    if (!user || user.status !== "APPROVED") {
+      return res.status(403).json({ success: false, message: "User not eligible" });
+    }
+
+    const accessToken = jwt.sign(
+      { userId: user.id, role: user.role },
+      config.jwt_access_secret,
+      { expiresIn: "15m" },
+    );
+
+    res.status(200).json({ success: true, data: { accessToken } });
+  } catch (err) {
+    return res.status(401).json({ success: false, message: "Invalid or expired refresh token" });
+  }
+};
+
+/**
+ * Logs the user out by clearing the refresh token cookie.
+ * @desc Clears the refresh token cookie and returns a success message.
+ * @route POST /api/auth/logout
+ * @access Public
+ */
+export const logout = (req, res) => {
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+  });
+  res.status(200).json({ success: true, message: "Logged out" });
 };
