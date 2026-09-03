@@ -234,3 +234,32 @@ export const logout = (req, res) => {
   });
   res.status(200).json({ success: true, message: "Logged out" });
 };
+
+/**
+ * Returns the currently authenticated user's identity.
+ * @desc Fetches the logged-in user's profile using the verified token payload
+ * @route GET /api/auth/me
+ * @access Private - Any authenticated, approved user
+ */
+export const getMe = async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    res.status(200).json({ success: true, data: { user } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to fetch user" });
+  }
+};
