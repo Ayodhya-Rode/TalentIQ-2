@@ -29,6 +29,7 @@ model User {
   password  String
   role      Role
   status    ApprovalStatus @default(PENDING)
+  employeeProfile EmployeeProfile?
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 }
@@ -38,4 +39,53 @@ model Category {
   id        String   @id @default(uuid())
   name      String   @unique
   createdAt DateTime @default(now())
+
+  employeeCategories EmployeeCategory[]
+}
+
+// to creates EmployeeProfile
+model EmployeeProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  education   String?
+  skills      String?
+  location    String?
+  experience  String?
+  company     String?
+  designation String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  categories  EmployeeCategory[]
+  slots       Slot[]
+}
+
+model EmployeeCategory {
+  id                String          @id @default(uuid())
+  employeeProfileId String
+  categoryId        String
+
+  employeeProfile EmployeeProfile @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
+  category        Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@unique([employeeProfileId, categoryId])
+}
+
+model Slot {
+  id                String          @id @default(uuid())
+  employeeProfileId String
+  employeeProfile   EmployeeProfile @relation(fields: [employeeProfileId], references: [id])
+  date              DateTime
+  startTime         DateTime
+  endTime           DateTime
+  status            SlotStatus      @default(OPEN)
+  createdAt         DateTime        @default(now())
+
+  @@unique([employeeProfileId, startTime])
+}
+
+enum SlotStatus {
+  OPEN
+  BOOKED
 }
