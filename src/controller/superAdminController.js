@@ -1,5 +1,5 @@
 import prisma from "../config/db.js";
-import {sendEmail} from "../utils/sendEmail.js";
+import { sendEmail } from "../utils/sendEmail.js";
 
 /**
  * Controller for getting pending users
@@ -86,14 +86,30 @@ export const approveUser = async (req, res) => {
       },
     });
 
-    sendEmail({
-      to: updatedUser.email,
-      name: updatedUser.name,
-      subject: "Welcome to TalentIQ!",
-      htmlContent: `<h2>Hi ${updatedUser.name},</h2>
-             <p>Your account has been approved. You can now log in and start using TalentIQ.</p>`,
-    }).catch((err) => console.error("Email send error:", err.message));
+    // Send welcome email
+    try {
+      sendEmail({
+        to: updatedUser.email,
+        subject: "Welcome to TalentIQ!",
+        htmlContent: `
+          <h2>Hi ${updatedUser.name},</h2>
 
+          <p>
+            Your TalentIQ account has been approved.
+            You can now log in and start using TalentIQ.
+          </p>
+
+          <p>
+            Welcome to TalentIQ!
+          </p>
+        `,
+      });
+    } catch (emailError) {
+      console.error(
+        `Welcome email failed for ${updatedUser.email}:`,
+        emailError.message,
+      );
+    }
     res.status(200).json({
       success: true,
       message: "User approved successfully",

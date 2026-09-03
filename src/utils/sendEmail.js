@@ -5,10 +5,10 @@ export const sendEmail = async ({ to, subject, htmlContent }) => {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "api-key": config.brevoApiKey,
+      "api-key": config.brevo.brevo_api_key,
     },
     body: JSON.stringify({
-      sender: { email: config.brevoSenderEmail, name: "TalentIQ" },
+      sender: { email: config.brevo.brevo_sender_email, name: "TalentIQ" },
       to: [{ email: to }],
       subject,
       htmlContent,
