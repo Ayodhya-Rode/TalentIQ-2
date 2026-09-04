@@ -8,7 +8,7 @@ import categoryRoutes from "./routes/categoryRoutes.js";
 import employeeRoutes from "./routes/employeeRoutes.js";
 import candidateRoutes from "./routes/candidateRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
-
+import interviewRoutes from "./routes/interviewRoutes.js";
 
 
 const app = express();
@@ -30,7 +30,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/employee", employeeRoutes);
 app.use("/api/candidate", candidateRoutes);
 app.use("/api/candidate/bookings", bookingRoutes);
-
+app.use("/api/interviews", interviewRoutes);
 
 // Global error handling middleware
 app.use((req, res) => {

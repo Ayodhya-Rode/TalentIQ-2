@@ -776,3 +776,50 @@ export const deleteSlot = async (req, res) => {
     });
   }
 };
+
+// ============================================================
+// GET MY BOOKINGS (employee)
+// ============================================================
+
+export const getMyBookings = async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    const validStatuses = ["PENDING_PAYMENT", "CONFIRMED", "COMPLETED", "EXPIRED"];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Use one of: ${validStatuses.join(", ")}`,
+      });
+    }
+
+    const employeeProfile = await prisma.employeeProfile.findUnique({
+      where: { userId: req.user.userId },
+    });
+
+    if (!employeeProfile) {
+      return res.status(404).json({ success: false, message: "Employee profile not found" });
+    }
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        employeeProfileId: employeeProfile.id,
+        ...(status ? { status } : {}),
+      },
+      include: {
+        slot: true,
+        candidateProfile: { include: { user: { select: { name: true, email: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return res.status(200).json({ success: true, data: bookings });
+  } catch (err) {
+    console.error("Get employee bookings error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch bookings",
+      error: err.message,
+    });
+  }
+};

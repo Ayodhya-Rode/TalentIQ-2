@@ -8,6 +8,7 @@ import {
   getMySlots,
   updateSlot,
   deleteSlot,
+  getMyBookings
 } from "../controller/employeeController.js";
 
 const router = express.Router();
@@ -20,5 +21,5 @@ router.post("/create-slot", verifyToken, authorize("EMPLOYEE"), createSlot);
 router.get("/get-slots", verifyToken, authorize("EMPLOYEE"), getMySlots);
 router.put("/update-slot/:id", verifyToken, authorize("EMPLOYEE"), updateSlot);
 router.delete("/delete-slot/:id", verifyToken, authorize("EMPLOYEE"), deleteSlot);
-
+router.get("/get-bookings", verifyToken, authorize("EMPLOYEE"), getMyBookings);
 export default router;
