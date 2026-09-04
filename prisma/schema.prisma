@@ -59,6 +59,7 @@ model EmployeeProfile {
   updatedAt   DateTime @updatedAt
 
   categories  EmployeeCategory[]
+  bookings Booking[]
   slots       Slot[]
 }
 
@@ -83,6 +84,8 @@ model Slot {
   status            SlotStatus      @default(OPEN)
   createdAt         DateTime        @default(now())
 
+  booking Booking?
+
   @@unique([employeeProfileId, startTime])
 }
 
@@ -106,6 +109,7 @@ model CandidateProfile {
 
   projects     Project[]
   certificates Certificate[]
+  bookings Booking[]
 }
 
 model Project {
@@ -134,4 +138,42 @@ model Certificate {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  COMPLETED
+  EXPIRED
+}
+
+enum PayoutStatus {
+  NONE
+  PENDING
+  PAID
+}
+
+model Booking {
+  id                 String   @id @default(uuid())
+  candidateProfileId String
+  candidateProfile   CandidateProfile @relation(fields: [candidateProfileId], references: [id])
+  employeeProfileId  String
+  employeeProfile    EmployeeProfile  @relation(fields: [employeeProfileId], references: [id])
+  slotId             String   @unique
+  slot               Slot     @relation(fields: [slotId], references: [id])
+
+  amount             Int      @default(100)
+  status             BookingStatus @default(PENDING_PAYMENT)
+
+  razorpayOrderId    String?  @unique
+  razorpayPaymentId  String?
+  razorpaySignature  String?
+
+  employeeConfirmedAt  DateTime?
+  candidateConfirmedAt DateTime?
+
+  payoutStatus       PayoutStatus @default(NONE)
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }

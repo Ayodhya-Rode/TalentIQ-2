@@ -9,6 +9,8 @@ const requiredEnvVars = [
   "JWT_SECRET_REFRESH",
   "BREVO_API_KEY",
   "BREVO_SENDER_EMAIL",
+  "RAZORPAY_KEY_ID",
+  "RAZORPAY_KEY_SECRET",
   
 ];
 // Checks all required variables are present in the environment
@@ -27,7 +29,11 @@ const config = {
     brevo_api_key: process.env.BREVO_API_KEY,
     brevo_sender_email: process.env.BREVO_SENDER_EMAIL,
     
-  }
+  },
+  razorpay: {
+    razorpay_key_id: process.env.RAZORPAY_KEY_ID,
+    razorpay_key_secret: process.env.RAZORPAY_KEY_SECRET,
+  },
 };
 
 export default config;
