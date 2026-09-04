@@ -11,6 +11,7 @@ const requiredEnvVars = [
   "BREVO_SENDER_EMAIL",
   "RAZORPAY_KEY_ID",
   "RAZORPAY_KEY_SECRET",
+  "FRONTEND_URL",
   
 ];
 // Checks all required variables are present in the environment
@@ -34,6 +35,7 @@ const config = {
     razorpay_key_id: process.env.RAZORPAY_KEY_ID,
     razorpay_key_secret: process.env.RAZORPAY_KEY_SECRET,
   },
+  frontend_url: process.env.FRONTEND_URL,
 };
 
 export default config;

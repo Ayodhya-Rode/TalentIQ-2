@@ -9,7 +9,7 @@ import employeeRoutes from "./routes/employeeRoutes.js";
 import candidateRoutes from "./routes/candidateRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import interviewRoutes from "./routes/interviewRoutes.js";
-
+import config from "./config/config.js";
 
 const app = express();
 
@@ -22,7 +22,10 @@ const authLimiter = rateLimit({
   message: { success: false, message: "Too many attempts, try again later" },
 });
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: config.frontend_url,
+  credentials: true,
+}));
 app.use(cookieParser());
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/super-admin", superAdminRoutes);
