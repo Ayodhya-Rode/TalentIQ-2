@@ -950,3 +950,58 @@ export const deleteCertificate = async (req, res) => {
     });
   }
 };
+
+/**
+ * Controller for fetching candidate dashboard summary
+ * @desc Aggregate counts across bookings for candidate overview
+ * @route GET /api/candidate/dashboard
+ * @access Private - Candidate
+ */
+export const getDashboardSummary = async (req, res) => {
+  try {
+    const candidateProfile = await prisma.candidateProfile.findUnique({
+      where: { userId: req.user.userId },
+      include: { user: { select: { name: true, email: true } } },
+    });
+
+    if (!candidateProfile) {
+      return res.status(404).json({ success: false, message: "Candidate profile not found" });
+    }
+
+    const [completedCount, upcomingConfirmedCount, paidBookings] = await Promise.all([
+      prisma.booking.count({
+        where: { candidateProfileId: candidateProfile.id, status: "COMPLETED" },
+      }),
+
+      prisma.booking.count({
+        where: { candidateProfileId: candidateProfile.id, status: "CONFIRMED" },
+      }),
+
+      prisma.booking.aggregate({
+        where: {
+          candidateProfileId: candidateProfile.id,
+          status: { in: ["CONFIRMED", "COMPLETED"] },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        name: candidateProfile.user.name,
+        designation: candidateProfile.designation,
+        totalInterviewsAttended: completedCount,
+        upcomingConfirmedInterviews: upcomingConfirmedCount,
+        totalAmountPaid: paidBookings._sum.amount || 0,
+      },
+    });
+  } catch (err) {
+    console.error("Get candidate dashboard error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch dashboard summary",
+      error: err.message,
+    });
+  }
+};

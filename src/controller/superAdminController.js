@@ -250,3 +250,68 @@ const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     });
   }
 };
+
+/**
+ * Controller for Super Admin dashboard summary
+ * @desc Aggregate counts across users and bookings for platform overview
+ * @route GET /api/admin/dashboard
+ * @access Private - Super Admin
+ */
+export const getDashboardSummary = async (req, res) => {
+  try {
+    const [
+      pendingCount,
+      approvedByRole,
+      rejectedByRole,
+      completedBookingsCount,
+      categoryCount,
+    ] = await Promise.all([
+      prisma.user.count({ where: { status: "PENDING" } }),
+
+      prisma.user.groupBy({
+        by: ["role"],
+        where: { status: "APPROVED", role: { not: "SUPER_ADMIN" } },
+        _count: { role: true },
+      }),
+
+      prisma.user.groupBy({
+        by: ["role"],
+        where: { status: "REJECTED" },
+        _count: { role: true },
+      }),
+
+      prisma.booking.count({ where: { status: "COMPLETED" } }),
+
+      prisma.category.count(),
+    ]);
+
+    const PLATFORM_CUT_RUPEES = 50; // ₹100 collected - ₹50 employee payout
+
+    const formatByRole = (grouped) => {
+      const result = { RECRUITER: 0, EMPLOYEE: 0, CANDIDATE: 0, SUPPORT: 0 };
+      grouped.forEach((g) => {
+        result[g.role] = g._count.role;
+      });
+      return result;
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        pendingApprovals: pendingCount,
+        activeAccounts: formatByRole(approvedByRole),
+        rejectedAccounts: formatByRole(rejectedByRole),
+        totalCategories: categoryCount,
+        totalCompletedInterviews: completedBookingsCount,
+        totalPlatformRevenue: completedBookingsCount * PLATFORM_CUT_RUPEES,
+      },
+    });
+  } catch (err) {
+    console.error("Get dashboard summary error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch dashboard summary",
+      error: err.message,
+    });
+  }
+};

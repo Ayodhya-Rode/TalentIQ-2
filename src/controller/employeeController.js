@@ -823,3 +823,57 @@ export const getMyBookings = async (req, res) => {
     });
   }
 };
+
+/**
+ * Controller for fetching employee dashboard summary
+ * @desc Aggregate counts across bookings and slots for employee overview
+ * @route GET /api/employee/dashboard
+ * @access Private - Employee 
+ */
+export const getDashboardSummary = async (req, res) => {
+  try {
+    const employeeProfile = await prisma.employeeProfile.findUnique({
+      where: { userId: req.user.userId },
+      include: { user: { select: { name: true, email: true } } },
+    });
+
+    if (!employeeProfile) {
+      return res.status(404).json({ success: false, message: "Employee profile not found" });
+    }
+
+    const PAYOUT_PER_INTERVIEW_RUPEES = 50;
+
+    const [completedCount, upcomingConfirmedCount, totalSlotsCount] = await Promise.all([
+      prisma.booking.count({
+        where: { employeeProfileId: employeeProfile.id, status: "COMPLETED" },
+      }),
+
+      prisma.booking.count({
+        where: { employeeProfileId: employeeProfile.id, status: "CONFIRMED" },
+      }),
+
+      prisma.slot.count({
+        where: { employeeProfileId: employeeProfile.id },
+      }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        name: employeeProfile.user.name,
+        designation: employeeProfile.designation,
+        totalInterviewsConducted: completedCount,
+        upcomingConfirmedInterviews: upcomingConfirmedCount,
+        totalSlotsCreated: totalSlotsCount,
+        totalRevenueEarned: completedCount * PAYOUT_PER_INTERVIEW_RUPEES,
+      },
+    });
+  } catch (err) {
+    console.error("Get employee dashboard error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch dashboard summary",
+      error: err.message,
+    });
+  }
+};
