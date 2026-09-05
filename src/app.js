@@ -16,7 +16,7 @@ const app = express();
 // To prevent brute-force attacks, we can limit the number of requests to authentication routes
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 min
-  max: 20,
+   max: process.env.NODE_ENV === "development" ? 1000 : 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: "Too many attempts, try again later" },
