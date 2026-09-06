@@ -9,7 +9,7 @@ const STALE_MINUTES = 15;
 const VISIBILITY_DAYS = 7;
 
 /**
- * Helpers to calculate booking window and stale cutoff times. 
+ * Helpers to calculate booking window and stale cutoff times.
  */
 const getBookingWindowEnd = () => {
   return new Date(Date.now() + VISIBILITY_DAYS * 24 * 60 * 60 * 1000);
@@ -218,9 +218,12 @@ export const getEmployeesByCategory = async (req, res) => {
       },
     });
 
+    // only return employees who have at least one available slot
+    const employeesWithSlots = employees.filter((emp) => emp.slots.length > 0);
+
     return res.status(200).json({
       success: true,
-      data: employees,
+      data: employeesWithSlots,
     });
   } catch (err) {
     console.error("Get employees by category error:", err);
@@ -460,7 +463,6 @@ export const createBookingOrder = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Create booking order error:", err)
     // Unique constraint
     if (
       err instanceof Prisma.PrismaClientKnownRequestError &&
@@ -471,8 +473,6 @@ export const createBookingOrder = async (req, res) => {
         message: "A booking already exists for this slot",
       });
     }
-
-    console.error("Create booking order error:", err);
 
     return res.status(500).json({
       success: false,
@@ -486,7 +486,7 @@ export const createBookingOrder = async (req, res) => {
  * VERIFY BOOKING PAYMENT -
  * @desc Verify Razorpay payment for a booking and confirm the booking if valid.
  * @route POST /api/candidate/bookings/verify-payment
- * @access CANDIDATE 
+ * @access CANDIDATE
  */
 export const verifyBookingPayment = async (req, res) => {
   try {
