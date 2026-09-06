@@ -259,3 +259,422 @@ export const candidateConfirmComplete = async (req, res) => {
     });
   }
 };
+
+
+const MAX_CANCEL_POSTPONE_PER_MONTH = 3;
+
+/**
+ * Get the count of cancellations and postponements for the current month for a given employee profile.
+ * @desc This function counts the number of cancellation and postponement actions taken by an employee in the current month.
+ * @route GET /api/employee/cancellation-count
+ * @access Private (Employee)
+ */
+const getMonthlyCancellationCount = async (tx, employeeProfileId) => {
+  const now = new Date();
+
+  const startOfMonth = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    1,
+    0,
+    0,
+    0,
+    0
+  );
+
+  const startOfNextMonth = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    1,
+    0,
+    0,
+    0,
+    0
+  );
+
+  return tx.cancellationLog.count({
+    where: {
+      employeeProfileId,
+      createdAt: {
+        gte: startOfMonth,
+        lt: startOfNextMonth,
+      },
+    },
+  });
+};
+
+/**
+ * Checks if the employee has reached the monthly cancellation and postponement limit.
+ * @desc This function verifies if the number of cancellation and postponement actions taken by an employee in the current month exceeds the allowed limit.
+ * @route GET /api/employee/check-monthly-limit
+ * @access Private (Employee)
+ */
+const checkMonthlyLimit = async (tx, employeeProfileId) => {
+  const count = await getMonthlyCancellationCount(tx, employeeProfileId);
+
+  if (count >= MAX_CANCEL_POSTPONE_PER_MONTH) {
+    const error = new Error("MONTHLY_LIMIT_REACHED");
+    error.currentCount = count;
+    throw error;
+  }
+
+  return count;
+};
+
+/**
+ * Employee cancels a booking
+ * @desc This function allows an employee to cancel a booking. It checks the employee's monthly cancellation limit, updates the booking and slot status, and logs the cancellation.
+ * @route POST /api/employee/bookings/:bookingId/cancel
+ * @access Private (Employee)
+ */
+export const cancelBooking = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { reason } = req.body;
+
+    // --------------------------------------------------------
+    // Find employee profile
+    // --------------------------------------------------------
+
+    const employeeProfile = await prisma.employeeProfile.findUnique({
+      where: {
+        userId: req.user.userId,
+      },
+    });
+
+    if (!employeeProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee profile not found",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Validate cancellation reason
+    // --------------------------------------------------------
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Cancellation reason is required",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Find booking
+    // --------------------------------------------------------
+
+    const booking = await prisma.booking.findUnique({
+      where: {
+        id: bookingId,
+      },
+    });
+
+    if (!booking || booking.employeeProfileId !== employeeProfile.id) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Validate booking status
+    // --------------------------------------------------------
+
+    if (booking.status !== "CONFIRMED") {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot cancel a booking with status ${booking.status}`,
+      });
+    }
+
+    // --------------------------------------------------------
+    // Transaction
+    // --------------------------------------------------------
+
+    await prisma.$transaction(async (tx) => {
+      // Check monthly limit BEFORE making the change
+      await checkMonthlyLimit(tx, employeeProfile.id);
+
+      // Cancel current slot
+      await tx.slot.update({
+        where: {
+          id: booking.slotId,
+        },
+        data: {
+          status: "CANCELLED",
+        },
+      });
+
+      // Cancel booking
+      await tx.booking.update({
+        where: {
+          id: booking.id,
+        },
+        data: {
+          status: "CANCELLED",
+          refundStatus: "PENDING",
+          cancelReason: reason.trim(),
+        },
+      });
+
+      // Create cancellation log
+      await tx.cancellationLog.create({
+        data: {
+          employeeProfileId: employeeProfile.id,
+          bookingId: booking.id,
+          type: "CANCEL",
+        },
+      });
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking cancelled. Refund marked pending.",
+    });
+  } catch (err) {
+    // --------------------------------------------------------
+    // Monthly limit reached
+    // --------------------------------------------------------
+
+    if (err.message === "MONTHLY_LIMIT_REACHED") {
+      console.warn(
+        `Employee ${req.user.userId} hit the monthly cancel/postpone limit (attempted a 4th action). Super Admin should review.`
+      );
+      // Real Notification model + Super Admin dashboard alert not built yet —
+      // logged for now, visible in server logs only.
+
+      return res.status(429).json({
+        success: false,
+        message: `Monthly cancel/postpone limit of ${MAX_CANCEL_POSTPONE_PER_MONTH} has been reached.`,
+        limit: MAX_CANCEL_POSTPONE_PER_MONTH,
+        used: err.currentCount,
+      });
+    }
+
+    console.error("Cancel booking error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to cancel booking",
+    });
+  }
+};
+
+/**
+ * Employee postpones a booking to a new slot
+ * @desc This function allows an employee to postpone a booking to a new slot. It checks the employee's monthly cancellation limit, validates the new slot, updates the booking and slot statuses, and logs the postponement.
+ * @route POST /api/employee/bookings/:bookingId/postpone
+ * @access Private (Employee)
+ */
+export const postponeBooking = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { newSlotId } = req.body;
+
+    // --------------------------------------------------------
+    // Validate new slot
+    // --------------------------------------------------------
+
+    if (!newSlotId) {
+      return res.status(400).json({
+        success: false,
+        message: "newSlotId is required",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Find employee profile
+    // --------------------------------------------------------
+
+    const employeeProfile = await prisma.employeeProfile.findUnique({
+      where: {
+        userId: req.user.userId,
+      },
+    });
+
+    if (!employeeProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee profile not found",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Find booking
+    // --------------------------------------------------------
+
+    const booking = await prisma.booking.findUnique({
+      where: {
+        id: bookingId,
+      },
+    });
+
+    if (!booking || booking.employeeProfileId !== employeeProfile.id) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Validate booking status
+    // --------------------------------------------------------
+
+    if (booking.status !== "CONFIRMED") {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot postpone a booking with status ${booking.status}`,
+      });
+    }
+
+    // --------------------------------------------------------
+    // Cannot postpone to same slot
+    // --------------------------------------------------------
+
+    if (booking.slotId === newSlotId) {
+      return res.status(400).json({
+        success: false,
+        message: "New slot must be different from the current slot",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Find new slot
+    // --------------------------------------------------------
+
+    const newSlot = await prisma.slot.findUnique({
+      where: {
+        id: newSlotId,
+      },
+    });
+
+    if (!newSlot || newSlot.employeeProfileId !== employeeProfile.id) {
+      return res.status(404).json({
+        success: false,
+        message: "New slot not found",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Validate new slot status
+    // --------------------------------------------------------
+
+    if (newSlot.status !== "OPEN") {
+      return res.status(409).json({
+        success: false,
+        message: "New slot is not available",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Validate new slot time
+    // --------------------------------------------------------
+
+    const now = new Date();
+
+    if (newSlot.startTime <= now) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot postpone to a slot in the past",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Transaction
+    // --------------------------------------------------------
+
+    await prisma.$transaction(async (tx) => {
+      // Check monthly limit BEFORE making the change
+      await checkMonthlyLimit(tx, employeeProfile.id);
+
+      // Lock the new slot
+      const lockResult = await tx.slot.updateMany({
+        where: {
+          id: newSlot.id,
+          status: "OPEN",
+        },
+        data: {
+          status: "BOOKED",
+        },
+      });
+
+      // Another request may have booked the slot
+      if (lockResult.count === 0) {
+        const error = new Error("SLOT_TAKEN");
+        throw error;
+      }
+
+      // Release/cancel old slot
+      await tx.slot.update({
+        where: {
+          id: booking.slotId,
+        },
+        data: {
+          status: "CANCELLED",
+        },
+      });
+
+      // Move booking to new slot
+      await tx.booking.update({
+        where: {
+          id: booking.id,
+        },
+        data: {
+          slotId: newSlot.id,
+        },
+      });
+
+      // Log postpone
+      await tx.cancellationLog.create({
+        data: {
+          employeeProfileId: employeeProfile.id,
+          bookingId: booking.id,
+          type: "POSTPONE",
+        },
+      });
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking postponed to new slot successfully",
+    });
+  } catch (err) {
+    // --------------------------------------------------------
+    // New slot was taken by another request
+    // --------------------------------------------------------
+
+    if (err.message === "SLOT_TAKEN") {
+      return res.status(409).json({
+        success: false,
+        message: "New slot was just taken by someone else",
+      });
+    }
+
+    // --------------------------------------------------------
+    // Monthly limit reached
+    // --------------------------------------------------------
+
+    if (err.message === "MONTHLY_LIMIT_REACHED") {
+      console.warn(
+        `Employee ${req.user.userId} hit the monthly cancel/postpone limit (attempted a 4th action). Super Admin should review.`
+      );
+      // Real Notification model + Super Admin dashboard alert not built yet —
+      // logged for now, visible in server logs only.
+
+      return res.status(429).json({
+        success: false,
+        message: `Monthly cancel/postpone limit of ${MAX_CANCEL_POSTPONE_PER_MONTH} has been reached.`,
+        limit: MAX_CANCEL_POSTPONE_PER_MONTH,
+        used: err.currentCount,
+      });
+    }
+
+    console.error("Postpone booking error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to postpone booking",
+    });
+  }
+};

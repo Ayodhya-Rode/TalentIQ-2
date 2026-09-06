@@ -61,6 +61,8 @@ model EmployeeProfile {
   categories  EmployeeCategory[]
   bookings Booking[]
   slots       Slot[]
+
+  cancellationLogs CancellationLog[]
 }
 
 model EmployeeCategory {
@@ -92,6 +94,7 @@ model Slot {
 enum SlotStatus {
   OPEN
   BOOKED
+  CANCELLED
 }
 
 
@@ -145,6 +148,7 @@ enum BookingStatus {
   CONFIRMED
   COMPLETED
   EXPIRED
+  CANCELLED
 }
 
 enum PayoutStatus {
@@ -174,6 +178,29 @@ model Booking {
 
   payoutStatus       PayoutStatus @default(NONE)
 
+  refundStatus RefundStatus @default(NONE)
+  cancelReason String?
+
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+}
+
+//Emp cancel inteview 
+enum CancellationType {
+  CANCEL
+  POSTPONE
+}
+
+model CancellationLog {
+  id                String            @id @default(uuid())
+  employeeProfileId String
+  employeeProfile   EmployeeProfile   @relation(fields: [employeeProfileId], references: [id])
+  bookingId         String
+  type              CancellationType
+  createdAt         DateTime          @default(now())
+}
+
+enum RefundStatus {
+  NONE
+  PENDING
 }
