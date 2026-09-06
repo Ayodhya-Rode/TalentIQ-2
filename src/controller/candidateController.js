@@ -980,7 +980,7 @@ export const getDashboardSummary = async (req, res) => {
       prisma.booking.aggregate({
         where: {
           candidateProfileId: candidateProfile.id,
-          status: { in: ["CONFIRMED", "COMPLETED"] },
+          status: { in: ["CONFIRMED", "COMPLETED", "CANCELLED"  ] },
         },
         _sum: { amount: true },
       }),
