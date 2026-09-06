@@ -181,6 +181,8 @@ model Booking {
   refundStatus RefundStatus @default(NONE)
   cancelReason String?
 
+  razorpayRefundId String?
+
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
@@ -203,4 +205,6 @@ model CancellationLog {
 enum RefundStatus {
   NONE
   PENDING
+  PROCESSED
+  FAILED
 }

@@ -855,3 +855,35 @@ export const getMyBookings = async (req, res) => {
     });
   }
 };
+
+/**
+ * GET EMPLOYEE OPEN SLOTS -
+ * @desc Fetch all open slots for a specific employee.
+ * @route GET /api/candidate/bookings/employees/:employeeProfileId/open-slots
+ * @access CANDIDATE
+ */
+export const getEmployeeOpenSlots = async (req, res) => {
+  try {
+    const { employeeProfileId } = req.params;
+    const now = new Date();
+    const windowEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const slots = await prisma.slot.findMany({
+      where: {
+        employeeProfileId,
+        status: "OPEN",
+        startTime: { gte: now, lte: windowEnd },
+      },
+      orderBy: { startTime: "asc" },
+    });
+
+    return res.status(200).json({ success: true, data: slots });
+  } catch (err) {
+    console.error("Get employee open slots error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch slots",
+      error: err.message,
+    });
+  }
+};

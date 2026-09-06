@@ -1,4 +1,5 @@
 import prisma from "../config/db.js";
+import razorpay from "../config/razorpay.js";
 
 /**
  * Employee confirms interview completion
@@ -675,6 +676,179 @@ export const postponeBooking = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to postpone booking",
+    });
+  }
+};
+
+/**
+ * Candidate rebooks the same employee for a different slot (after employee cancel)
+ * @desc This function allows a candidate to rebook a slot with the same employee for a different time slot, reusing the already-paid amount.
+ * @route POST /api/candidate/bookings/:bookingId/rebook
+ * @access Private (Candidate)
+ */
+export const candidateRebookSameEmployee = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { newSlotId } = req.body;
+
+    if (!newSlotId) {
+      return res.status(400).json({ success: false, message: "newSlotId is required" });
+    }
+
+    const candidateProfile = await prisma.candidateProfile.findUnique({
+      where: { userId: req.user.userId },
+    });
+
+    if (!candidateProfile) {
+      return res.status(404).json({ success: false, message: "Candidate profile not found" });
+    }
+
+    const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+
+    if (!booking || booking.candidateProfileId !== candidateProfile.id) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (booking.status !== "CANCELLED" || booking.refundStatus !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: "This booking is not eligible for rebooking",
+      });
+    }
+
+    const newSlot = await prisma.slot.findUnique({ where: { id: newSlotId } });
+
+    if (!newSlot || newSlot.employeeProfileId !== booking.employeeProfileId) {
+      return res.status(404).json({
+        success: false,
+        message: "New slot must belong to the same employee",
+      });
+    }
+
+    if (newSlot.status !== "OPEN") {
+      return res.status(409).json({ success: false, message: "New slot is not available" });
+    }
+
+    if (newSlot.startTime < new Date()) {
+      return res.status(400).json({ success: false, message: "Cannot rebook a slot in the past" });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const lockResult = await tx.slot.updateMany({
+        where: { id: newSlot.id, status: "OPEN" },
+        data: { status: "BOOKED" },
+      });
+
+      if (lockResult.count === 0) {
+        throw new Error("SLOT_TAKEN");
+      }
+
+      return tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          status: "CONFIRMED",
+          slotId: newSlot.id,
+          refundStatus: "NONE",
+          employeeConfirmedAt: null,
+          candidateConfirmedAt: null,
+        },
+      });
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Rebooked successfully using your existing payment",
+      data: updated,
+    });
+  } catch (err) {
+    if (err.message === "SLOT_TAKEN") {
+      return res.status(409).json({ success: false, message: "That slot was just taken by someone else" });
+    }
+    console.error("Candidate rebook error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to rebook",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * Candidate requests a refund for a cancelled booking
+ * @desc This function allows a candidate to request a refund for a booking that has been cancelled by the employee. It checks the booking status and processes the refund through Razorpay.
+ * @route POST /api/candidate/bookings/:bookingId/request-refund
+ * @access Private (Candidate)
+ */
+export const requestRefund = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+
+    const candidateProfile = await prisma.candidateProfile.findUnique({
+      where: { userId: req.user.userId },
+    });
+
+    if (!candidateProfile) {
+      return res.status(404).json({ success: false, message: "Candidate profile not found" });
+    }
+
+    const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+
+    if (!booking || booking.candidateProfileId !== candidateProfile.id) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    if (booking.status !== "CANCELLED" || booking.refundStatus !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: "This booking is not eligible for a refund",
+      });
+    }
+
+    if (!booking.razorpayPaymentId) {
+      return res.status(400).json({
+        success: false,
+        message: "No payment record found for this booking",
+      });
+    }
+
+    try {
+      const refund = await razorpay.payments.refund(booking.razorpayPaymentId, {
+        amount: booking.amount * 100,
+      });
+
+      const updated = await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          refundStatus: "PROCESSED",
+          razorpayRefundId: refund.id,
+        },
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Refund processed successfully",
+        data: updated,
+      });
+    } catch (razorpayError) {
+      console.error("Razorpay refund error:", razorpayError);
+
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: { refundStatus: "FAILED" },
+      });
+
+      return res.status(500).json({
+        success: false,
+        message: "Refund could not be processed. Please try again or contact support.",
+        error: razorpayError.message,
+      });
+    }
+  } catch (err) {
+    console.error("Request refund error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to process refund request",
+      error: err.message,
     });
   }
 };

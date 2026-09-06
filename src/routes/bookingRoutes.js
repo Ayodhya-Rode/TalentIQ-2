@@ -5,6 +5,7 @@ import {
   createBookingOrder,
   verifyBookingPayment,
   getMyBookings,
+  getEmployeeOpenSlots 
 } from "../controller/bookingController.js";
 
 const router = express.Router();
@@ -14,4 +15,5 @@ router.post("/create-order", verifyToken, authorize("CANDIDATE"), createBookingO
 router.post("/verify-payment", verifyToken, authorize("CANDIDATE"), verifyBookingPayment);
 router.get("/my-bookings", verifyToken, authorize("CANDIDATE"), getMyBookings);
 
+router.get("/employee/:employeeProfileId/slots", verifyToken, authorize("CANDIDATE"), getEmployeeOpenSlots);
 export default router;
