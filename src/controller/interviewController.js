@@ -797,12 +797,12 @@ export const requestRefund = async (req, res) => {
       return res.status(404).json({ success: false, message: "Booking not found" });
     }
 
-    if (booking.status !== "CANCELLED" || booking.refundStatus !== "PENDING") {
-      return res.status(400).json({
-        success: false,
-        message: "This booking is not eligible for a refund",
-      });
-    }
+    if (booking.status !== "CANCELLED" || !["PENDING", "FAILED"].includes(booking.refundStatus)) {
+  return res.status(400).json({
+    success: false,
+    message: "This booking is not eligible for a refund",
+  });
+}
 
     if (!booking.razorpayPaymentId) {
       return res.status(400).json({
