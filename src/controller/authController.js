@@ -2,6 +2,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import prisma from "../config/db.js";
 import config from "../config/config.js";
+import crypto from "crypto";
+import { sendEmail } from "../utils/sendEmail.js";
 
 /**
  * Controller for user registration
@@ -261,5 +263,180 @@ export const getMe = async (req, res) => {
     res.status(200).json({ success: true, data: { user } });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to fetch user" });
+  }
+};
+
+
+const OTP_EXPIRY_MINUTES = 10;
+
+const generateOtp = () => crypto.randomInt(100000, 999999).toString();
+
+/**
+ * Sends a password reset OTP to the user's email.
+ * @desc Generates a one-time password (OTP) for password reset, stores it in the database with an expiration time, and sends it to the user's email. Does not reveal whether the email exists for security reasons.
+ * @route POST /api/auth/forgot-password
+ * @access Public 
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+
+    // Don't reveal whether the email exists — always return success.
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: "If an account exists with this email, an OTP has been sent.",
+      });
+    }
+
+    const otp = generateOtp();
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { resetOtp: otp, resetOtpExpiresAt: expiresAt },
+    });
+
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: "Your TalentIQ password reset OTP",
+        htmlContent: `
+          <h2>Hi ${user.name},</h2>
+          <p>Your OTP to reset your password is:</p>
+          <h1>${otp}</h1>
+          <p>This code expires in ${OTP_EXPIRY_MINUTES} minutes. If you didn't request this, ignore this email.</p>
+        `,
+      });
+    } catch (emailErr) {
+      console.error("Forgot password email failed:", emailErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "If an account exists with this email, an OTP has been sent.",
+    });
+  } catch (err) {
+    console.error("Forgot password error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to process request",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * Verifies the OTP provided by the user for password reset.
+ * @desc Checks if the provided OTP matches the one stored in the database and is not expired. Returns success if valid, otherwise returns an error.
+ * @route POST /api/auth/verify-otp
+ * @access Public
+ */
+export const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: "Email and OTP are required" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+
+    if (!user || !user.resetOtp || !user.resetOtpExpiresAt) {
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+    }
+
+    if (user.resetOtp !== otp) {
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+    }
+
+    if (user.resetOtpExpiresAt < new Date()) {
+      // Clear expired OTP so it can't be reused/retried indefinitely.
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { resetOtp: null, resetOtpExpiresAt: null },
+      });
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+    }
+
+    return res.status(200).json({ success: true, message: "OTP verified" });
+  } catch (err) {
+    console.error("Verify OTP error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to verify OTP",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * Resets the user's password after verifying the OTP.
+ * @desc Updates the user's password in the database if the OTP is valid and not expired.
+ * @route POST /api/auth/reset-password
+ * @access Public
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Email, OTP, and new password are required",
+      });
+    }
+
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters with letters, numbers, and a special character",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+
+    if (!user || !user.resetOtp || !user.resetOtpExpiresAt) {
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+    }
+
+    if (user.resetOtp !== otp || user.resetOtpExpiresAt < new Date()) {
+      // Clear on failed attempt too — prevents indefinite retry on a stale/expired OTP.
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { resetOtp: null, resetOtpExpiresAt: null },
+      });
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetOtp: null,
+        resetOtpExpiresAt: null,
+      },
+    });
+
+    return res.status(200).json({ success: true, message: "Password reset successfully" });
+  } catch (err) {
+    console.error("Reset password error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to reset password",
+      error: err.message,
+    });
   }
 };

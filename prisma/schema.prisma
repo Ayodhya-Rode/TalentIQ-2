@@ -31,6 +31,10 @@ model User {
   status    ApprovalStatus @default(PENDING)
   employeeProfile EmployeeProfile?
   candidateProfile CandidateProfile?
+
+  resetOtp          String?
+  resetOtpExpiresAt DateTime?
+
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 }
