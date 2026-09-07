@@ -31,6 +31,7 @@ const sendDueReminders = async () => {
         employeeEmail: booking.employeeProfile.user.email,
         employeeName: booking.employeeProfile.user.name,
         slot: booking.slot,
+        bookingId: booking.id,
       });
 
       // Guard with reminderSentAt: null so a slow tick can't double-send.

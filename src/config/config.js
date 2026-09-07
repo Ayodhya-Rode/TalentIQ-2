@@ -12,6 +12,9 @@ const requiredEnvVars = [
   "RAZORPAY_KEY_ID",
   "RAZORPAY_KEY_SECRET",
   "FRONTEND_URL",
+  "LIVEKIT_URL",
+  "LIVEKIT_API_KEY",
+  "LIVEKIT_API_SECRET",
   
 ];
 // Checks all required variables are present in the environment
@@ -36,6 +39,11 @@ const config = {
     razorpay_key_secret: process.env.RAZORPAY_KEY_SECRET,
   },
   frontend_url: process.env.FRONTEND_URL,
+  livekit: {
+    livekit_url: process.env.LIVEKIT_URL,
+    livekit_api_key: process.env.LIVEKIT_API_KEY,
+    livekit_api_secret: process.env.LIVEKIT_API_SECRET,
+  },
 };
 
 export default config;

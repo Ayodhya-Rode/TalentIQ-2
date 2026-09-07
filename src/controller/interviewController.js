@@ -5,6 +5,7 @@ import {
   notifyCancellationLimitReached,
   notifyPostponement 
 } from "../utils/notifications.js";
+import { createLiveKitToken } from "../config/livekit.js";
 
 /**
  * Employee confirms interview completion
@@ -920,6 +921,90 @@ export const requestRefund = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to process refund request",
+      error: err.message,
+    });
+  }
+};
+
+const JOIN_WINDOW_BEFORE_MIN = 10;
+
+/**
+ * Generates a join token for an interview session
+ * @desc This function generates a LiveKit join token for a user to join an interview session. It checks the booking status, user role, and timing constraints before generating the token.
+ * @route GET /api/interviews/bookings/:bookingId/join-token
+ * @access Private (Candidate or Employee)
+ */
+export const getInterviewJoinToken = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const userId = req.user.userId;
+    const role = req.user.role;
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        slot: true,
+        candidateProfile: { include: { user: { select: { id: true, name: true } } } },
+        employeeProfile: { include: { user: { select: { id: true, name: true } } } },
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    const isCandidate = role === "CANDIDATE" && booking.candidateProfile.user.id === userId;
+    const isEmployee = role === "EMPLOYEE" && booking.employeeProfile.user.id === userId;
+
+    if (!isCandidate && !isEmployee) {
+      return res.status(403).json({ success: false, message: "You are not part of this interview" });
+    }
+
+    if (booking.status !== "CONFIRMED") {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot join a booking with status ${booking.status}`,
+      });
+    }
+
+    const now = new Date();
+    const windowStart = new Date(
+      booking.slot.startTime.getTime() - JOIN_WINDOW_BEFORE_MIN * 60 * 1000
+    );
+
+    if (now < windowStart) {
+      return res.status(400).json({
+        success: false,
+        message: `Join opens ${JOIN_WINDOW_BEFORE_MIN} minutes before the interview starts`,
+      });
+    }
+
+    if (now > booking.slot.endTime) {
+      return res.status(400).json({ success: false, message: "This interview has already ended" });
+    }
+
+    const roomName = `interview-${booking.id}`;
+    const participantName = isCandidate ? booking.candidateProfile.user.name : booking.employeeProfile.user.name;
+
+    const token = await createLiveKitToken({
+      identity: userId,
+      name: participantName,
+      roomName,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        token,
+        roomName,
+        livekitUrl: process.env.LIVEKIT_URL,
+      },
+    });
+  } catch (err) {
+    console.error("Get interview join token error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate join token",
       error: err.message,
     });
   }

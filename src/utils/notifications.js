@@ -60,8 +60,11 @@ export const notifyReminder = async ({
   employeeEmail,
   employeeName,
   slot,
+  bookingId,
 }) => {
   const startsAt = formatTime(slot.startTime);
+  const joinLink = `${process.env.FRONTEND_URL}/interview-room/${bookingId}`;
+
   await Promise.all([
     safeSend({
       to: candidateEmail,
@@ -69,6 +72,7 @@ export const notifyReminder = async ({
       htmlContent: `
         <h2>Hi ${candidateName},</h2>
         <p>Your mock interview with <strong>${employeeName}</strong> starts at <strong>${startsAt}</strong> — in about 10 minutes.</p>
+        <p><a href="${joinLink}">Click here to join the interview</a></p>
       `,
     }),
     safeSend({
@@ -77,6 +81,7 @@ export const notifyReminder = async ({
       htmlContent: `
         <h2>Hi ${employeeName},</h2>
         <p>Your mock interview with <strong>${candidateName}</strong> starts at <strong>${startsAt}</strong> — in about 10 minutes.</p>
+        <p><a href="${joinLink}">Click here to join the interview</a></p>
       `,
     }),
   ]);

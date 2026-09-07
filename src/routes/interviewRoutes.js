@@ -6,7 +6,8 @@ import {
   cancelBooking,
   postponeBooking,
   candidateRebookSameEmployee,
-  requestRefund 
+  requestRefund,
+  getInterviewJoinToken 
 } from "../controller/interviewController.js";
 
 const router = express.Router();
@@ -49,5 +50,12 @@ router.post(
   verifyToken,
   authorize("CANDIDATE"),
   requestRefund
+);
+
+router.get(
+  "/bookings/:bookingId/join-token",
+  verifyToken,
+  authorize("EMPLOYEE", "CANDIDATE"),
+  getInterviewJoinToken
 );
 export default router;
