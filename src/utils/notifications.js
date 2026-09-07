@@ -12,13 +12,23 @@ const safeSend = async (opts) => {
 };
 
 const formatDateTime = (date) =>
-  new Date(date).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+  new Date(date).toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 
 const formatTime = (date) =>
-  new Date(date).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  new Date(date).toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
 export const notifyBookingConfirmed = async ({
-  candidateEmail, candidateName, employeeEmail, employeeName, slot,
+  candidateEmail,
+  candidateName,
+  employeeEmail,
+  employeeName,
+  slot,
 }) => {
   const when = formatDateTime(slot.startTime);
   await Promise.all([
@@ -45,7 +55,11 @@ export const notifyBookingConfirmed = async ({
 };
 
 export const notifyReminder = async ({
-  candidateEmail, candidateName, employeeEmail, employeeName, slot,
+  candidateEmail,
+  candidateName,
+  employeeEmail,
+  employeeName,
+  slot,
 }) => {
   const startsAt = formatTime(slot.startTime);
   await Promise.all([
@@ -69,7 +83,10 @@ export const notifyReminder = async ({
 };
 
 export const notifyCancellation = async ({
-  candidateEmail, candidateName, employeeName, reason,
+  candidateEmail,
+  candidateName,
+  employeeName,
+  reason,
 }) => {
   await safeSend({
     to: candidateEmail,
@@ -89,8 +106,40 @@ export const notifyCancellation = async ({
   });
 };
 
+export const notifyPostponement = async ({
+  candidateEmail,
+  candidateName,
+  employeeName,
+  newSlot,
+}) => {
+  const when = formatDateTime(newSlot.startTime);
+
+  await safeSend({
+    to: candidateEmail,
+    subject: "Your interview has been rescheduled",
+    htmlContent: `
+      <h2>Hi ${candidateName},</h2>
+      <p>
+  Just a quick update: your mock interview with <strong>${employeeName}</strong>
+  has been rescheduled to a new time.
+</p>
+
+<p>
+  <strong>New date & time:</strong> ${when}
+</p>
+
+<p>
+  Your booking remains confirmed for this new slot. Thanks for your
+  understanding, and we’ll see you at the interview!
+</p>
+    `,
+  });
+};
+
 export const notifyCancellationLimitReached = async ({
-  employeeEmail, employeeName, limit,
+  employeeEmail,
+  employeeName,
+  limit,
 }) => {
   await safeSend({
     to: employeeEmail,

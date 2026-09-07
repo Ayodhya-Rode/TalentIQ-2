@@ -3,6 +3,7 @@ import razorpay from "../config/razorpay.js";
 import {
   notifyCancellation,
   notifyCancellationLimitReached,
+  notifyPostponement 
 } from "../utils/notifications.js";
 
 /**
@@ -656,6 +657,21 @@ export const postponeBooking = async (req, res) => {
         },
       });
     });
+
+     // To send postpone notification to candidate
+    const candidateForNotification = await prisma.candidateProfile.findUnique({
+      where: { id: booking.candidateProfileId },
+      include: { user: { select: { name: true, email: true } } },
+    });
+
+    if (candidateForNotification) {
+      await notifyPostponement({
+        candidateEmail: candidateForNotification.user.email,
+        candidateName: candidateForNotification.user.name,
+        employeeName: employeeProfile.user.name,
+        newSlot,
+      });
+    }
 
     return res.status(200).json({
       success: true,
