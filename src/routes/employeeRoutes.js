@@ -10,6 +10,7 @@ import {
   deleteSlot,
   getMyBookings,
   getDashboardSummary,
+  setDayOffline 
 } from "../controller/employeeController.js";
 
 const router = express.Router();
@@ -24,4 +25,5 @@ router.put("/update-slot/:id", verifyToken, authorize("EMPLOYEE"), updateSlot);
 router.delete("/delete-slot/:id", verifyToken, authorize("EMPLOYEE"), deleteSlot);
 router.get("/get-bookings", verifyToken, authorize("EMPLOYEE"), getMyBookings);
 router.get("/dashboard", verifyToken, authorize("EMPLOYEE"), getDashboardSummary);
+router.post("/day-offline", verifyToken, authorize("EMPLOYEE"), setDayOffline);
 export default router;

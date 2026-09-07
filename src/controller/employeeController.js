@@ -877,3 +877,78 @@ export const getDashboardSummary = async (req, res) => {
     });
   }
 };
+
+/**
+ * Sets a day as offline, cancelling all open slots for that day
+ * @desc Cancel all open slots for a specific date, leaving booked slots untouched
+ * @route POST /api/employee/set-day-offline
+ * @access Private - Employee
+ * @body { date: string (YYYY-MM-DD) }
+ * @returns { success: boolean, message: string, hiddenCount: number, untouchedBookedCount: number }
+ */
+export const setDayOffline = async (req, res) => {
+  try {
+    const { date } = req.body;
+
+    if (!date) {
+      return res.status(400).json({ success: false, message: "date is required (YYYY-MM-DD)" });
+    }
+
+    const employeeProfile = await prisma.employeeProfile.findUnique({
+      where: { userId: req.user.userId },
+    });
+
+    if (!employeeProfile) {
+      return res.status(404).json({ success: false, message: "Employee profile not found" });
+    }
+
+    const dayStart = new Date(`${date}T00:00:00.000Z`);
+    const dayEnd = new Date(`${date}T23:59:59.999Z`);
+
+    if (isNaN(dayStart.getTime())) {
+      return res.status(400).json({ success: false, message: "Invalid date format" });
+    }
+
+    const daySlots = await prisma.slot.findMany({
+      where: {
+        employeeProfileId: employeeProfile.id,
+        startTime: { gte: dayStart, lte: dayEnd },
+      },
+    });
+
+    const openSlotIds = daySlots.filter((s) => s.status === "OPEN").map((s) => s.id);
+    const bookedCount = daySlots.filter((s) => s.status === "BOOKED").length;
+
+    if (openSlotIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: bookedCount > 0
+          ? `No open slots to hide. ${bookedCount} booked slot(s) that day are untouched.`
+          : "No open slots found for that day.",
+        hiddenCount: 0,
+        untouchedBookedCount: bookedCount,
+      });
+    }
+
+    await prisma.slot.updateMany({
+      where: { id: { in: openSlotIds } },
+      data: { status: "CANCELLED" },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `${openSlotIds.length} open slot(s) hidden for ${date}.${
+        bookedCount > 0 ? ` ${bookedCount} booked slot(s) could not be touched.` : ""
+      }`,
+      hiddenCount: openSlotIds.length,
+      untouchedBookedCount: bookedCount,
+    });
+  } catch (err) {
+    console.error("Set day offline error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to set day offline",
+      error: err.message,
+    });
+  }
+};

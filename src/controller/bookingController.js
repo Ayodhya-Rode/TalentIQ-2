@@ -5,7 +5,7 @@ import { Prisma } from "../generated/prisma/index.js";
 import { notifyBookingConfirmed } from "../utils/notifications.js";
 
 const BOOKING_AMOUNT_RUPEES = 100;
-const MAX_BOOKINGS_PER_EMPLOYEE = 3;
+const MAX_BOOKINGS_PER_EMPLOYEE = process.env.NODE_ENV === "development" ? 10000 : 3;
 const STALE_MINUTES = 15;
 const VISIBILITY_DAYS = 7;
 
