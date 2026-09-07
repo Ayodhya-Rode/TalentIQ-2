@@ -1,6 +1,6 @@
 import express from "express";
 import { verifyToken, authorize } from "../middlewares/authMiddleware.js";
-import { getPendingUsers, approveUser, rejectUser, getAllUsers,getDashboardSummary } from "../controller/superAdminController.js";
+import { getPendingUsers, approveUser, rejectUser, getAllUsers,getDashboardSummary, getCancellationWarnings } from "../controller/superAdminController.js";
 
 const router = express.Router();
 
@@ -10,4 +10,5 @@ router.patch("/users/:id/approve", verifyToken, authorize("SUPER_ADMIN"), approv
 router.patch("/users/:id/reject", verifyToken, authorize("SUPER_ADMIN"), rejectUser);
 router.get("/users", verifyToken, authorize("SUPER_ADMIN"), getAllUsers);
 router.get("/dashboard", verifyToken, authorize("SUPER_ADMIN"), getDashboardSummary);
+router.get("/cancellation-warnings", verifyToken, authorize("SUPER_ADMIN"), getCancellationWarnings);
 export default router;

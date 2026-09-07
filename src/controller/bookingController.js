@@ -2,6 +2,7 @@ import prisma from "../config/db.js";
 import razorpay from "../config/razorpay.js";
 import crypto from "crypto";
 import { Prisma } from "../generated/prisma/index.js";
+import { notifyBookingConfirmed } from "../utils/notifications.js";
 
 const BOOKING_AMOUNT_RUPEES = 100;
 const MAX_BOOKINGS_PER_EMPLOYEE = 3;
@@ -17,6 +18,28 @@ const getBookingWindowEnd = () => {
 
 const getStaleCutoff = () => {
   return new Date(Date.now() - STALE_MINUTES * 60 * 1000);
+};
+
+// To be called after a booking is confirmed, to send notification emails to both candidate and employee.
+const sendBookingConfirmedNotification = async (bookingId) => {
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: {
+      slot: true,
+      candidateProfile: { include: { user: { select: { name: true, email: true } } } },
+      employeeProfile: { include: { user: { select: { name: true, email: true } } } },
+    },
+  });
+
+  if (!booking) return;
+
+  await notifyBookingConfirmed({
+    candidateEmail: booking.candidateProfile.user.email,
+    candidateName: booking.candidateProfile.user.name,
+    employeeEmail: booking.employeeProfile.user.email,
+    employeeName: booking.employeeProfile.user.name,
+    slot: booking.slot,
+  });
 };
 
 /**
@@ -102,6 +125,7 @@ const releaseIfStale = async (slotId) => {
           console.warn(
             `Booking ${pendingBooking.id} was paid but verify-payment was never called. Booking force-confirmed.`,
           );
+          await sendBookingConfirmedNotification(pendingBooking.id);
         }
 
         // Slot remains BOOKED.
@@ -747,6 +771,8 @@ export const verifyBookingPayment = async (req, res) => {
         message: "Booking could not be confirmed",
       });
     }
+
+    await sendBookingConfirmedNotification(booking.id);
 
     // --------------------------------------------------------
     // 14. Get final booking

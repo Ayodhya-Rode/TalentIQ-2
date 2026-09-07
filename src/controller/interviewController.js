@@ -1,5 +1,9 @@
 import prisma from "../config/db.js";
 import razorpay from "../config/razorpay.js";
+import {
+  notifyCancellation,
+  notifyCancellationLimitReached,
+} from "../utils/notifications.js";
 
 /**
  * Employee confirms interview completion
@@ -261,7 +265,6 @@ export const candidateConfirmComplete = async (req, res) => {
   }
 };
 
-
 const MAX_CANCEL_POSTPONE_PER_MONTH = 3;
 
 /**
@@ -280,7 +283,7 @@ const getMonthlyCancellationCount = async (tx, employeeProfileId) => {
     0,
     0,
     0,
-    0
+    0,
   );
 
   const startOfNextMonth = new Date(
@@ -290,7 +293,7 @@ const getMonthlyCancellationCount = async (tx, employeeProfileId) => {
     0,
     0,
     0,
-    0
+    0,
   );
 
   return tx.cancellationLog.count({
@@ -329,6 +332,8 @@ const checkMonthlyLimit = async (tx, employeeProfileId) => {
  * @access Private (Employee)
  */
 export const cancelBooking = async (req, res) => {
+  let employeeProfile;
+
   try {
     const { bookingId } = req.params;
     const { reason } = req.body;
@@ -337,9 +342,12 @@ export const cancelBooking = async (req, res) => {
     // Find employee profile
     // --------------------------------------------------------
 
-    const employeeProfile = await prisma.employeeProfile.findUnique({
+    employeeProfile = await prisma.employeeProfile.findUnique({
       where: {
         userId: req.user.userId,
+      },
+      include: {
+        user: { select: { name: true, email: true } },
       },
     });
 
@@ -394,24 +402,15 @@ export const cancelBooking = async (req, res) => {
     // --------------------------------------------------------
 
     await prisma.$transaction(async (tx) => {
-      // Check monthly limit BEFORE making the change
       await checkMonthlyLimit(tx, employeeProfile.id);
 
-      // Cancel current slot
       await tx.slot.update({
-        where: {
-          id: booking.slotId,
-        },
-        data: {
-          status: "CANCELLED",
-        },
+        where: { id: booking.slotId },
+        data: { status: "CANCELLED" },
       });
 
-      // Cancel booking
       await tx.booking.update({
-        where: {
-          id: booking.id,
-        },
+        where: { id: booking.id },
         data: {
           status: "CANCELLED",
           refundStatus: "PENDING",
@@ -419,7 +418,6 @@ export const cancelBooking = async (req, res) => {
         },
       });
 
-      // Create cancellation log
       await tx.cancellationLog.create({
         data: {
           employeeProfileId: employeeProfile.id,
@@ -429,21 +427,41 @@ export const cancelBooking = async (req, res) => {
       });
     });
 
+    // --------------------------------------------------------
+    // Notify candidate
+    // --------------------------------------------------------
+
+    const candidateForNotification = await prisma.candidateProfile.findUnique({
+      where: { id: booking.candidateProfileId },
+      include: { user: { select: { name: true, email: true } } },
+    });
+
+    if (candidateForNotification) {
+      await notifyCancellation({
+        candidateEmail: candidateForNotification.user.email,
+        candidateName: candidateForNotification.user.name,
+        employeeName: employeeProfile.user.name,
+        reason: reason.trim(),
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "Booking cancelled. Refund marked pending.",
     });
   } catch (err) {
-    // --------------------------------------------------------
-    // Monthly limit reached
-    // --------------------------------------------------------
-
     if (err.message === "MONTHLY_LIMIT_REACHED") {
       console.warn(
-        `Employee ${req.user.userId} hit the monthly cancel/postpone limit (attempted a 4th action). Super Admin should review.`
+        `Employee ${req.user.userId} hit the monthly cancel/postpone limit (attempted a 4th action). Super Admin should review.`,
       );
-      // Real Notification model + Super Admin dashboard alert not built yet —
-      // logged for now, visible in server logs only.
+
+      if (employeeProfile?.user) {
+        await notifyCancellationLimitReached({
+          employeeEmail: employeeProfile.user.email,
+          employeeName: employeeProfile.user.name,
+          limit: MAX_CANCEL_POSTPONE_PER_MONTH,
+        });
+      }
 
       return res.status(429).json({
         success: false,
@@ -491,6 +509,9 @@ export const postponeBooking = async (req, res) => {
     const employeeProfile = await prisma.employeeProfile.findUnique({
       where: {
         userId: req.user.userId,
+      },
+      include: {
+        user: { select: { name: true, email: true } },
       },
     });
 
@@ -658,10 +679,18 @@ export const postponeBooking = async (req, res) => {
 
     if (err.message === "MONTHLY_LIMIT_REACHED") {
       console.warn(
-        `Employee ${req.user.userId} hit the monthly cancel/postpone limit (attempted a 4th action). Super Admin should review.`
+        `Employee ${req.user.userId} hit the monthly cancel/postpone limit (attempted a 4th action). Super Admin should review.`,
       );
-      // Real Notification model + Super Admin dashboard alert not built yet —
-      // logged for now, visible in server logs only.
+
+      // Visible in the Super Admin dashboard's "Cancellation Warnings" tab,
+      // and the employee gets an automatic warning email.
+      if (employeeProfile?.user) {
+        await notifyCancellationLimitReached({
+          employeeEmail: employeeProfile.user.email,
+          employeeName: employeeProfile.user.name,
+          limit: MAX_CANCEL_POSTPONE_PER_MONTH,
+        });
+      }
 
       return res.status(429).json({
         success: false,
@@ -692,7 +721,9 @@ export const candidateRebookSameEmployee = async (req, res) => {
     const { newSlotId } = req.body;
 
     if (!newSlotId) {
-      return res.status(400).json({ success: false, message: "newSlotId is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "newSlotId is required" });
     }
 
     const candidateProfile = await prisma.candidateProfile.findUnique({
@@ -700,13 +731,19 @@ export const candidateRebookSameEmployee = async (req, res) => {
     });
 
     if (!candidateProfile) {
-      return res.status(404).json({ success: false, message: "Candidate profile not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Candidate profile not found" });
     }
 
-    const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
 
     if (!booking || booking.candidateProfileId !== candidateProfile.id) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Booking not found" });
     }
 
     if (booking.status !== "CANCELLED" || booking.refundStatus !== "PENDING") {
@@ -726,11 +763,15 @@ export const candidateRebookSameEmployee = async (req, res) => {
     }
 
     if (newSlot.status !== "OPEN") {
-      return res.status(409).json({ success: false, message: "New slot is not available" });
+      return res
+        .status(409)
+        .json({ success: false, message: "New slot is not available" });
     }
 
     if (newSlot.startTime < new Date()) {
-      return res.status(400).json({ success: false, message: "Cannot rebook a slot in the past" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Cannot rebook a slot in the past" });
     }
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -762,7 +803,12 @@ export const candidateRebookSameEmployee = async (req, res) => {
     });
   } catch (err) {
     if (err.message === "SLOT_TAKEN") {
-      return res.status(409).json({ success: false, message: "That slot was just taken by someone else" });
+      return res
+        .status(409)
+        .json({
+          success: false,
+          message: "That slot was just taken by someone else",
+        });
     }
     console.error("Candidate rebook error:", err);
     return res.status(500).json({
@@ -788,21 +834,30 @@ export const requestRefund = async (req, res) => {
     });
 
     if (!candidateProfile) {
-      return res.status(404).json({ success: false, message: "Candidate profile not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Candidate profile not found" });
     }
 
-    const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
 
     if (!booking || booking.candidateProfileId !== candidateProfile.id) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Booking not found" });
     }
 
-    if (booking.status !== "CANCELLED" || !["PENDING", "FAILED"].includes(booking.refundStatus)) {
-  return res.status(400).json({
-    success: false,
-    message: "This booking is not eligible for a refund",
-  });
-}
+    if (
+      booking.status !== "CANCELLED" ||
+      !["PENDING", "FAILED"].includes(booking.refundStatus)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "This booking is not eligible for a refund",
+      });
+    }
 
     if (!booking.razorpayPaymentId) {
       return res.status(400).json({
@@ -839,7 +894,8 @@ export const requestRefund = async (req, res) => {
 
       return res.status(500).json({
         success: false,
-        message: "Refund could not be processed. Please try again or contact support.",
+        message:
+          "Refund could not be processed. Please try again or contact support.",
         error: razorpayError.message,
       });
     }

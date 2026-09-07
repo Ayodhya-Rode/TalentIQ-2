@@ -315,3 +315,55 @@ export const getDashboardSummary = async (req, res) => {
     });
   }
 };
+
+
+/**
+ * Controller for listing employees who've hit the monthly cancellation/
+ * postponement limit, so Super Admin can review and take action.
+ * @desc Fetches employees with 3+ cancellations/postponements in the current month
+ * @route GET /api/super-admin/cancellation-warnings
+ * @access Private - Super Admin
+ */
+export const getCancellationWarnings = async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const MONTHLY_LIMIT = 3;
+
+    const grouped = await prisma.cancellationLog.groupBy({
+      by: ["employeeProfileId"],
+      where: { createdAt: { gte: startOfMonth, lt: startOfNextMonth } },
+      _count: { employeeProfileId: true },
+      having: { employeeProfileId: { _count: { gte: MONTHLY_LIMIT } } },
+    });
+
+    const employeeProfiles = await prisma.employeeProfile.findMany({
+      where: { id: { in: grouped.map((g) => g.employeeProfileId) } },
+      include: {
+        user: { select: { id: true, name: true, email: true, status: true } },
+      },
+    });
+
+    const data = grouped.map((g) => {
+      const profile = employeeProfiles.find((p) => p.id === g.employeeProfileId);
+      return {
+        employeeProfileId: g.employeeProfileId,
+        userId: profile?.user.id,
+        name: profile?.user.name,
+        email: profile?.user.email,
+        status: profile?.user.status,
+        cancellationsThisMonth: g._count.employeeProfileId,
+      };
+    });
+
+    return res.status(200).json({ success: true, data });
+  } catch (err) {
+    console.error("Get cancellation warnings error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch cancellation warnings",
+      error: err.message,
+    });
+  }
+};

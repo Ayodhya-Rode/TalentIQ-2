@@ -176,6 +176,8 @@ model Booking {
   employeeConfirmedAt  DateTime?
   candidateConfirmedAt DateTime?
 
+   reminderSentAt       DateTime?
+
   payoutStatus       PayoutStatus @default(NONE)
 
   refundStatus RefundStatus @default(NONE)
