@@ -11,6 +11,7 @@ import {
   updateCertificate,
   deleteCertificate,
   getDashboardSummary,
+  getCandidateProfileWithHistory
 } from "../controller/candidateController.js";
 
 const router = express.Router();
@@ -28,4 +29,5 @@ router.post("/add-certificates", verifyToken, authorize("CANDIDATE"), addCertifi
 router.put("/update-certificates/:id", verifyToken, authorize("CANDIDATE"), updateCertificate);
 router.delete("/delete-certificates/:id", verifyToken, authorize("CANDIDATE"), deleteCertificate);
 
+router.get("/profile-view", verifyToken, authorize("CANDIDATE"), getCandidateProfileWithHistory);
 export default router;

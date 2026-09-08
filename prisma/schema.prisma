@@ -188,6 +188,9 @@ model Booking {
   cancelReason String?
 
   razorpayRefundId String?
+  feedback String?
+  score    Int?
+  feedbackGivenAt DateTime?
 
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt

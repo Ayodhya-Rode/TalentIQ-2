@@ -1005,3 +1005,71 @@ export const getDashboardSummary = async (req, res) => {
     });
   }
 };
+
+
+export const getCandidateProfileWithHistory = async (req, res) => {
+  try {
+    const candidateProfile = await prisma.candidateProfile.findUnique({
+      where: {
+        userId: req.user.userId,
+      },
+      include: {
+        projects: true,
+        certificates: true,
+      },
+    });
+
+    if (!candidateProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Candidate profile not found",
+      });
+    }
+
+    const completedBookings = await prisma.booking.findMany({
+      where: {
+        candidateProfileId: candidateProfile.id,
+        status: "COMPLETED",
+      },
+      include: {
+        employeeProfile: {
+          include: {
+            user: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        slot: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    const interviewHistory = completedBookings.map((booking) => ({
+      bookingId: booking.id,
+      employeeName: booking.employeeProfile?.user?.name ?? "Unknown",
+      date: booking.slot?.startTime ?? null,
+      feedback: booking.feedback ?? null,
+      score: booking.score ?? null,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        profile: candidateProfile,
+        totalCompletedInterviews: completedBookings.length,
+        interviewHistory,
+      },
+    });
+  } catch (err) {
+    console.error("Get candidate profile with history error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch profile",
+    });
+  }
+};

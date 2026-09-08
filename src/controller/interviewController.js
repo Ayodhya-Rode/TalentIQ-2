@@ -1009,3 +1009,127 @@ export const getInterviewJoinToken = async (req, res) => {
     });
   }
 };
+
+const MIN_SCORE = 1;
+const MAX_SCORE = 10;
+
+/**
+ * Submit feedback for a completed interview
+ * @route POST /api/employee/bookings/:bookingId/feedback
+ * @access Private (Employee)
+ */
+export const submitFeedback = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { feedback, score } = req.body;
+
+    // Validate feedback
+    if (typeof feedback !== "string" || !feedback.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Feedback is required",
+      });
+    }
+
+    // Validate score
+    const scoreNum = Number(score);
+
+    if (
+      !Number.isInteger(scoreNum) ||
+      scoreNum < MIN_SCORE ||
+      scoreNum > MAX_SCORE
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `Score must be a whole number between ${MIN_SCORE} and ${MAX_SCORE}`,
+      });
+    }
+
+    // Find employee profile
+    const employeeProfile = await prisma.employeeProfile.findUnique({
+      where: {
+        userId: req.user.userId,
+      },
+    });
+
+    if (!employeeProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee profile not found",
+      });
+    }
+
+    // Verify booking belongs to this employee
+    const booking = await prisma.booking.findUnique({
+      where: {
+        id: bookingId,
+      },
+      select: {
+        id: true,
+        employeeProfileId: true,
+        status: true,
+        feedbackGivenAt: true,
+      },
+    });
+
+    if (
+      !booking ||
+      booking.employeeProfileId !== employeeProfile.id
+    ) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    // Feedback only after interview completion
+    if (booking.status !== "COMPLETED") {
+      return res.status(400).json({
+        success: false,
+        message: "Feedback can only be given for completed interviews",
+      });
+    }
+
+    // Prevent duplicate feedback
+    if (booking.feedbackGivenAt) {
+      return res.status(400).json({
+        success: false,
+        message: "Feedback has already been submitted and cannot be changed",
+      });
+    }
+
+    // Atomic update prevents duplicate submissions from concurrent requests
+    const updated = await prisma.booking.updateMany({
+      where: {
+        id: bookingId,
+        employeeProfileId: employeeProfile.id,
+        status: "COMPLETED",
+        feedbackGivenAt: null,
+      },
+      data: {
+        feedback: feedback.trim(),
+        score: scoreNum,
+        feedbackGivenAt: new Date(),
+      },
+    });
+
+    if (updated.count === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Feedback has already been submitted or booking is no longer eligible",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Feedback submitted successfully",
+    });
+  } catch (err) {
+    console.error("Submit feedback error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to submit feedback",
+    });
+  }
+};
