@@ -126,6 +126,9 @@ model CandidateProfile {
   projects     Project[]
   certificates Certificate[]
   bookings Booking[]
+
+  resumeUrl        String?
+  resumeUploadedAt DateTime?
 }
 
 model Project {

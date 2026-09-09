@@ -11,8 +11,10 @@ import {
   updateCertificate,
   deleteCertificate,
   getDashboardSummary,
-  getCandidateProfileWithHistory
+  getCandidateProfileWithHistory,
+  uploadResumeFile 
 } from "../controller/candidateController.js";
+import uploadResume from "../middlewares/uploadResume.js";
 
 const router = express.Router();
 
@@ -30,4 +32,11 @@ router.put("/update-certificates/:id", verifyToken, authorize("CANDIDATE"), upda
 router.delete("/delete-certificates/:id", verifyToken, authorize("CANDIDATE"), deleteCertificate);
 
 router.get("/profile-view", verifyToken, authorize("CANDIDATE"), getCandidateProfileWithHistory);
+router.post(
+  "/upload-resume",
+  verifyToken,
+  authorize("CANDIDATE"),
+  uploadResume.single("resume"),
+  uploadResumeFile
+);
 export default router;

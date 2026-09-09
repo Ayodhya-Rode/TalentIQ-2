@@ -1,5 +1,6 @@
 import prisma from "../config/db.js";
 import { Prisma } from "../generated/prisma/index.js";
+import imagekit from "../config/imagekit.js";
 
 // HELPERS
 
@@ -1070,6 +1071,49 @@ export const getCandidateProfileWithHistory = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch profile",
+    });
+  }
+};
+
+export const uploadResumeFile = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No file uploaded" });
+    }
+
+    const candidateProfile = await prisma.candidateProfile.findUnique({
+      where: { userId: req.user.userId },
+    });
+
+    if (!candidateProfile) {
+      return res.status(404).json({ success: false, message: "Candidate profile not found" });
+    }
+
+    const uploadResult = await imagekit.upload({
+      file: req.file.buffer,
+      fileName: `resume-${candidateProfile.id}-${Date.now()}.pdf`,
+      folder: "/talentiq/resumes",
+    });
+
+    const updated = await prisma.candidateProfile.update({
+      where: { id: candidateProfile.id },
+      data: {
+        resumeUrl: uploadResult.url,
+        resumeUploadedAt: new Date(),
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Resume uploaded successfully",
+      data: { resumeUrl: updated.resumeUrl, resumeUploadedAt: updated.resumeUploadedAt },
+    });
+  } catch (err) {
+    console.error("Upload resume error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload resume",
+      error: err.message,
     });
   }
 };

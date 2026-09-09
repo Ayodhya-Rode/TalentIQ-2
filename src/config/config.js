@@ -15,6 +15,9 @@ const requiredEnvVars = [
   "LIVEKIT_URL",
   "LIVEKIT_API_KEY",
   "LIVEKIT_API_SECRET",
+  "IMAGEKIT_PUBLIC_KEY",
+  "IMAGEKIT_PRIVATE_KEY",
+  "IMAGEKIT_URL_ENDPOINT",
   
 ];
 // Checks all required variables are present in the environment
@@ -44,6 +47,11 @@ const config = {
     livekit_api_key: process.env.LIVEKIT_API_KEY,
     livekit_api_secret: process.env.LIVEKIT_API_SECRET,
   },
+  imagekit:{
+    imagekit_url: process.env.IMAGEKIT_URL_ENDPOINT,
+    imagekit_public: process.env.IMAGEKIT_PUBLIC_KEY,
+    imagekit_private: process.env.IMAGEKIT_PRIVATE_KEY
+  }
 };
 
 export default config;
