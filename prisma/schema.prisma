@@ -37,6 +37,11 @@ model User {
 
   recruiterProfile RecruiterProfile?
 
+  // Queries this user raised (as CANDIDATE/EMPLOYEE/RECRUITER)
+  raisedQueries   SupportQuery[] @relation("RaisedQueries")
+  // Queries this user (SUPPORT) resolved
+  resolvedQueries SupportQuery[] @relation("ResolvedQueries")
+
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 }
@@ -244,4 +249,29 @@ model RecruiterEmailLog {
   role                String
   skillsRequired      String
   sentAt              DateTime         @default(now())
+}
+
+enum QueryStatus {
+  OPEN
+  RESOLVED
+}
+
+// Raised by CANDIDATE/EMPLOYEE/RECRUITER, handled by SUPPORT
+model SupportQuery {
+  id      String @id @default(uuid())
+
+  userId  String
+  user    User   @relation("RaisedQueries", fields: [userId], references: [id])
+
+  subject String
+  message String
+
+  status  QueryStatus @default(OPEN)
+
+  resolvedById   String?
+  resolvedBy     User?   @relation("ResolvedQueries", fields: [resolvedById], references: [id])
+  resolutionNote String?
+
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
 }

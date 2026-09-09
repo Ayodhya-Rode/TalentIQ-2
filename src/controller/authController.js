@@ -440,3 +440,66 @@ export const resetPassword = async (req, res) => {
     });
   }
 };
+
+/**
+ * Changes the password of the currently logged-in user.
+ * @desc Verifies the current password before setting a new one — used by
+ *       Support (and anyone) to replace an admin-issued temporary password.
+ * @route PUT /api/auth/change-password
+ * @access Private - Any authenticated, approved user
+ */
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Current password and new password are required",
+      });
+    }
+
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be at least 8 characters with letters, numbers, and a special character",
+      });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: "Current password is incorrect" });
+    }
+
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be different from the current password",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    });
+
+    return res.status(200).json({ success: true, message: "Password changed successfully" });
+  } catch (err) {
+    console.error("Change password error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to change password",
+      error: err.message,
+    });
+  }
+};

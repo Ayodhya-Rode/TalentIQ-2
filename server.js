@@ -2,6 +2,7 @@ import config from "./src/config/config.js";
 import app from "./src/app.js";
 import prisma from "./src/config/db.js";
 import { startReminderJob } from "./src/jobs/reminderJob.js";   
+import { startSupportDigestJob } from "./src/jobs/supportDigestJob.js";
 
 
 prisma.$connect()
@@ -14,4 +15,5 @@ prisma.$connect()
 app.listen(config.port, () => {
   console.log(`Server is running on port ${config.port}`);
   startReminderJob();  
+  startSupportDigestJob();
 })

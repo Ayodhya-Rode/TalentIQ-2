@@ -1,6 +1,99 @@
 import prisma from "../config/db.js";
 import { sendEmail } from "../utils/sendEmail.js";
+import bcrypt from "bcryptjs";
+import config from "../config/config.js";
+import { generateTempPassword } from "../utils/generatePassword.js";
 
+export const createSupportUser = async (req, res) => {
+  try {
+    const { name, email } = req.body;
+
+    if (!name || !name.trim()) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Name is required" });
+    }
+    if (!email || !email.trim()) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Email is required" });
+    }
+
+    const cleanName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid email format" });
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+    if (existingUser) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Email already registered" });
+    }
+
+    const tempPassword = generateTempPassword();
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+    const supportUser = await prisma.user.create({
+      data: {
+        name: cleanName,
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: "SUPPORT",
+        status: "APPROVED",
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    const loginLink = `${config.frontend_url}/login`;
+
+    try {
+      await sendEmail({
+        to: supportUser.email,
+        subject: "Your TalentIQ Support account has been created",
+        htmlContent: `
+          <h2>Hi ${supportUser.name},</h2>
+          <p>A Support account has been created for you on TalentIQ.</p>
+          <p><strong>Email:</strong> ${supportUser.email}</p>
+          <p><strong>Temporary Password:</strong> ${tempPassword}</p>
+          <p>Please log in and consider using this account responsibly.</p>
+          <p><a href="${loginLink}">Click here to log in</a></p>
+        `,
+      });
+    } catch (emailErr) {
+      console.error("Support account email failed:", emailErr.message);
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Support account created and credentials emailed",
+      data: supportUser,
+    });
+  } catch (err) {
+    console.error("Create support user error:", err);
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: "Failed to create support account",
+        error: err.message,
+      });
+  }
+};
 /**
  * Controller for getting pending users
  * @desc Retrieves all users waiting for Super Admin approval
@@ -204,7 +297,7 @@ export const getAllUsers = async (req, res) => {
     const { role, status } = req.query;
 
     const page = Math.max(parseInt(req.query.page) || 1, 1);
-const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
 
     // Prevent fetching Super Admin users
     if (role === "SUPER_ADMIN") {
@@ -231,8 +324,8 @@ const limit = Math.min(parseInt(req.query.limit) || 20, 100);
       orderBy: {
         createdAt: "desc",
       },
-        skip: (page - 1) * limit,
-  take: limit,
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
     res.status(200).json({
@@ -265,24 +358,26 @@ export const getDashboardSummary = async (req, res) => {
       rejectedByRole,
       completedBookingsCount,
       categoryCount,
+      totalQueries,
+      solvedQueries,
+      pendingQueries,
     ] = await Promise.all([
       prisma.user.count({ where: { status: "PENDING" } }),
-
       prisma.user.groupBy({
         by: ["role"],
         where: { status: "APPROVED", role: { not: "SUPER_ADMIN" } },
         _count: { role: true },
       }),
-
       prisma.user.groupBy({
         by: ["role"],
         where: { status: "REJECTED" },
         _count: { role: true },
       }),
-
       prisma.booking.count({ where: { status: "COMPLETED" } }),
-
       prisma.category.count(),
+      prisma.supportQuery.count(),
+      prisma.supportQuery.count({ where: { status: "RESOLVED" } }),
+      prisma.supportQuery.count({ where: { status: "OPEN" } }),
     ]);
 
     const PLATFORM_CUT_RUPEES = 50; // ₹100 collected - ₹50 employee payout
@@ -304,6 +399,11 @@ export const getDashboardSummary = async (req, res) => {
         totalCategories: categoryCount,
         totalCompletedInterviews: completedBookingsCount,
         totalPlatformRevenue: completedBookingsCount * PLATFORM_CUT_RUPEES,
+         supportQueries: {
+          total: totalQueries,
+          solved: solvedQueries,
+          pending: pendingQueries,
+        },
       },
     });
   } catch (err) {
@@ -315,7 +415,6 @@ export const getDashboardSummary = async (req, res) => {
     });
   }
 };
-
 
 /**
  * Controller for listing employees who've hit the monthly cancellation/
@@ -346,7 +445,9 @@ export const getCancellationWarnings = async (req, res) => {
     });
 
     const data = grouped.map((g) => {
-      const profile = employeeProfiles.find((p) => p.id === g.employeeProfileId);
+      const profile = employeeProfiles.find(
+        (p) => p.id === g.employeeProfileId,
+      );
       return {
         employeeProfileId: g.employeeProfileId,
         userId: profile?.user.id,
