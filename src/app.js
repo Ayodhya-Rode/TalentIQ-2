@@ -10,7 +10,7 @@ import candidateRoutes from "./routes/candidateRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import interviewRoutes from "./routes/interviewRoutes.js";
 import config from "./config/config.js";
-
+import recruiterRoutes from "./routes/recruiterRoutes.js";
 const app = express();
 
 // To prevent brute-force attacks, we can limit the number of requests to authentication routes
@@ -27,6 +27,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(cookieParser());
+app.use(express.json());
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/super-admin", superAdminRoutes);
 app.use("/api/categories", categoryRoutes);
@@ -34,6 +35,8 @@ app.use("/api/employee", employeeRoutes);
 app.use("/api/candidate", candidateRoutes);
 app.use("/api/candidate/bookings", bookingRoutes);
 app.use("/api/interviews", interviewRoutes);
+app.use("/api/recruiter", recruiterRoutes);
+
 
 // Global error handling middleware
 app.use((req, res) => {

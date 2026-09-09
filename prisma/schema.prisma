@@ -35,6 +35,8 @@ model User {
   resetOtp          String?
   resetOtpExpiresAt DateTime?
 
+  recruiterProfile RecruiterProfile?
+
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 }
@@ -113,6 +115,8 @@ model CandidateProfile {
   designation String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+ recruiterEmailLogs RecruiterEmailLog[]
 
   projects     Project[]
   certificates Certificate[]
@@ -216,4 +220,28 @@ enum RefundStatus {
   PENDING
   PROCESSED
   FAILED
+}
+
+model RecruiterProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  company   String?
+  location  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  emailLogs RecruiterEmailLog[]
+}
+
+// soft warning to Recruiter about mail send to candidate
+model RecruiterEmailLog {
+  id                  String           @id @default(uuid())
+  recruiterProfileId  String
+  recruiterProfile    RecruiterProfile @relation(fields: [recruiterProfileId], references: [id])
+  candidateProfileId  String
+  candidateProfile    CandidateProfile @relation(fields: [candidateProfileId], references: [id])
+  role                String
+  skillsRequired      String
+  sentAt              DateTime         @default(now())
 }
