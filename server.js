@@ -3,7 +3,7 @@ import app from "./src/app.js";
 import prisma from "./src/config/db.js";
 import { startReminderJob } from "./src/jobs/reminderJob.js";   
 import { startSupportDigestJob } from "./src/jobs/supportDigestJob.js";
-
+import { startStalePaymentSweepJob } from "./src/jobs/stalePaymentSweepJob.js";
 
 prisma.$connect()
   .then(() => console.log("Database connected"))
@@ -16,4 +16,5 @@ app.listen(config.port, () => {
   console.log(`Server is running on port ${config.port}`);
   startReminderJob();  
   startSupportDigestJob();
+  startStalePaymentSweepJob();
 })
