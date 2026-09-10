@@ -45,6 +45,8 @@ const sendDailySupportDigest = async () => {
 };
 
 export const startSupportDigestJob = () => {
-  cron.schedule("0 18 * * *", sendDailySupportDigest); // 6 PM daily
+  cron.schedule("0 18 * * *", sendDailySupportDigest, {
+    timezone: "Asia/Kolkata",
+  }); // 6 PM daily
   console.log("Support digest job scheduled (daily at 6 PM).");
 };
