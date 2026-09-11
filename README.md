@@ -3,6 +3,7 @@
 TalentIQ is a full-stack mock interview booking platform. Candidates book and pay for practice interviews with real professionals, attend them over live video, and receive structured feedback. The platform supports five distinct roles — Super Admin, Employee, Candidate, Recruiter, and Support — each with its own workflow, permissions, and dashboard.
 
 **Live Frontend:** https://talentiq2-frontend2.onrender.com
+
 **Frontend Repo:** https://github.com/Ayodhya-Rode/TalentIQ2-frontend
 
 ## Tech Stack
@@ -85,8 +86,11 @@ TalentIQ is a full-stack mock interview booking platform. Candidates book and pa
 Clone and install dependencies:
 
 \`\`\`bash
+
 git clone https://github.com/Ayodhya-Rode/TalentIQ-2.git
+
 cd TalentIQ-2
+
 npm install
 \`\`\`
 
@@ -113,8 +117,11 @@ Create a `.env` file with the following variables:
 Run migrations and start the server:
 
 \`\`\`bash
+
 npx prisma migrate dev
+
 npm run dev
+
 \`\`\`
 
 Server runs on `http://localhost:5000`.
