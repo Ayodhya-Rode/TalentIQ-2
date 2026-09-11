@@ -41,8 +41,7 @@ export const register = async (req, res) => {
       });
     }
 
-    const passwordRegex =
-      /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d\s]).{8,64}$/;
 
     if (!passwordRegex.test(password)) {
       return res.status(400).json({
@@ -96,13 +95,11 @@ export const register = async (req, res) => {
       user,
     });
   } catch (err) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Registration failed",
-        error: err.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Registration failed",
+      error: err.message,
+    });
   }
 };
 
@@ -199,15 +196,21 @@ export const login = async (req, res) => {
 export const refresh = async (req, res) => {
   const token = req.cookies.refreshToken;
   if (!token) {
-    return res.status(401).json({ success: false, message: "No refresh token" });
+    return res
+      .status(401)
+      .json({ success: false, message: "No refresh token" });
   }
 
   try {
     const decoded = jwt.verify(token, config.jwt_refresh_secret);
-    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+    });
 
     if (!user || user.status !== "APPROVED") {
-      return res.status(403).json({ success: false, message: "User not eligible" });
+      return res
+        .status(403)
+        .json({ success: false, message: "User not eligible" });
     }
 
     const accessToken = jwt.sign(
@@ -218,7 +221,9 @@ export const refresh = async (req, res) => {
 
     res.status(200).json({ success: true, data: { accessToken } });
   } catch (err) {
-    return res.status(401).json({ success: false, message: "Invalid or expired refresh token" });
+    return res
+      .status(401)
+      .json({ success: false, message: "Invalid or expired refresh token" });
   }
 };
 
@@ -257,7 +262,9 @@ export const getMe = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     res.status(200).json({ success: true, data: { user } });
@@ -265,7 +272,6 @@ export const getMe = async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to fetch user" });
   }
 };
-
 
 const OTP_EXPIRY_MINUTES = 10;
 
@@ -275,18 +281,22 @@ const generateOtp = () => crypto.randomInt(100000, 999999).toString();
  * Sends a password reset OTP to the user's email.
  * @desc Generates a one-time password (OTP) for password reset, stores it in the database with an expiration time, and sends it to the user's email. Does not reveal whether the email exists for security reasons.
  * @route POST /api/auth/forgot-password
- * @access Public 
+ * @access Public
  */
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
     if (!email || !email.trim()) {
-      return res.status(400).json({ success: false, message: "Email is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Email is required" });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
 
     // Don't reveal whether the email exists — always return success.
     if (!user) {
@@ -344,18 +354,26 @@ export const verifyOtp = async (req, res) => {
     const { email, otp } = req.body;
 
     if (!email || !otp) {
-      return res.status(400).json({ success: false, message: "Email and OTP are required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Email and OTP are required" });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
 
     if (!user || !user.resetOtp || !user.resetOtpExpiresAt) {
-      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid or expired OTP" });
     }
 
     if (user.resetOtp !== otp) {
-      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid or expired OTP" });
     }
 
     if (user.resetOtpExpiresAt < new Date()) {
@@ -364,7 +382,9 @@ export const verifyOtp = async (req, res) => {
         where: { id: user.id },
         data: { resetOtp: null, resetOtpExpiresAt: null },
       });
-      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid or expired OTP" });
     }
 
     return res.status(200).json({ success: true, message: "OTP verified" });
@@ -395,19 +415,25 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
+    const passwordRegex =
+      /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
     if (!passwordRegex.test(newPassword)) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 8 characters with letters, numbers, and a special character",
+        message:
+          "Password must be at least 8 characters with letters, numbers, and a special character",
       });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
 
     if (!user || !user.resetOtp || !user.resetOtpExpiresAt) {
-      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid or expired OTP" });
     }
 
     if (user.resetOtp !== otp || user.resetOtpExpiresAt < new Date()) {
@@ -416,7 +442,9 @@ export const resetPassword = async (req, res) => {
         where: { id: user.id },
         data: { resetOtp: null, resetOtpExpiresAt: null },
       });
-      return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid or expired OTP" });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -430,7 +458,9 @@ export const resetPassword = async (req, res) => {
       },
     });
 
-    return res.status(200).json({ success: true, message: "Password reset successfully" });
+    return res
+      .status(200)
+      .json({ success: true, message: "Password reset successfully" });
   } catch (err) {
     console.error("Reset password error:", err);
     return res.status(500).json({
@@ -459,23 +489,31 @@ export const changePassword = async (req, res) => {
       });
     }
 
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
+    const passwordRegex =
+      /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
     if (!passwordRegex.test(newPassword)) {
       return res.status(400).json({
         success: false,
-        message: "New password must be at least 8 characters with letters, numbers, and a special character",
+        message:
+          "New password must be at least 8 characters with letters, numbers, and a special character",
       });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+    });
 
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: "Current password is incorrect" });
+      return res
+        .status(401)
+        .json({ success: false, message: "Current password is incorrect" });
     }
 
     const isSamePassword = await bcrypt.compare(newPassword, user.password);
@@ -493,7 +531,9 @@ export const changePassword = async (req, res) => {
       data: { password: hashedPassword },
     });
 
-    return res.status(200).json({ success: true, message: "Password changed successfully" });
+    return res
+      .status(200)
+      .json({ success: true, message: "Password changed successfully" });
   } catch (err) {
     console.error("Change password error:", err);
     return res.status(500).json({
