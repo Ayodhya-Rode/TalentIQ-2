@@ -4,7 +4,7 @@ TalentIQ is a full-stack mock interview booking platform. Candidates book and pa
 
 **Live Frontend:** https://talentiq2-frontend2.onrender.com
 
-**Frontend Repo:** https://github.com/Ayodhya-Rode/TalentIQ2-frontend
+**Frontend Repo:** https://github.com/sailotech-engineering-pocs/talentiq-ui
 
 ## Tech Stack
 
@@ -22,7 +22,7 @@ TalentIQ is a full-stack mock interview booking platform. Candidates book and pa
 | LiveKit | Live video interview rooms with per-user access tokens |
 | Brevo | Transactional emails — confirmations, reminders, cancellations, digests |
 | ImageKit | Candidate resume file storage |
-| Cloudflare R2 | Interview recording storage (S3-compatible) |
+
 
 ## Roles & Core Features
 
@@ -87,9 +87,9 @@ Clone and install dependencies:
 
 \`\`\`bash
 
-git clone https://github.com/Ayodhya-Rode/TalentIQ-2.git
+git clone https://github.com/sailotech-engineering-pocs/talentiq-service.git
 
-cd TalentIQ-2
+cd talentiq-service
 
 npm install
 \`\`\`
