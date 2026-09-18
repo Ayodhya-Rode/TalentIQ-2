@@ -987,6 +987,14 @@ export const getDashboardSummary = async (req, res) => {
       }),
     ]);
 
+      const refundedBookings = await prisma.booking.aggregate({
+        where: {
+          candidateProfileId: candidateProfile.id,
+          refundStatus: "PROCESSED",
+        },
+        _sum: { amount: true },
+      });
+      
     return res.status(200).json({
       success: true,
       data: {
@@ -995,6 +1003,7 @@ export const getDashboardSummary = async (req, res) => {
         totalInterviewsAttended: completedCount,
         upcomingConfirmedInterviews: upcomingConfirmedCount,
         totalAmountPaid: paidBookings._sum.amount || 0,
+        totalRefunded: refundedBookings._sum.amount || 0,
       },
     });
   } catch (err) {
