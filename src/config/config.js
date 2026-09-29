@@ -18,6 +18,7 @@ const requiredEnvVars = [
   "IMAGEKIT_PUBLIC_KEY",
   "IMAGEKIT_PRIVATE_KEY",
   "IMAGEKIT_URL_ENDPOINT",
+  "GROQ_API_KEY"
   
 ];
 // Checks all required variables are present in the environment
@@ -51,7 +52,12 @@ const config = {
     imagekit_url: process.env.IMAGEKIT_URL_ENDPOINT,
     imagekit_public: process.env.IMAGEKIT_PUBLIC_KEY,
     imagekit_private: process.env.IMAGEKIT_PRIVATE_KEY
-  }
+  },imagekit:{
+    imagekit_url: process.env.IMAGEKIT_URL_ENDPOINT,
+    imagekit_public: process.env.IMAGEKIT_PUBLIC_KEY,
+    imagekit_private: process.env.IMAGEKIT_PRIVATE_KEY
+  },
+  groq_api_key: process.env.GROQ_API_KEY,
 };
 
 export default config;

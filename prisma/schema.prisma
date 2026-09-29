@@ -204,6 +204,10 @@ model Booking {
   score    Int?
   feedbackGivenAt DateTime?
 
+  aiQuestions            Json?    // last generated set 
+  aiQuestionsGeneratedAt DateTime?  // drives the "generated X min ago" label.
+  aiQuestionsCount       Int       @default(0)  // enforces the 3-generation cap.
+
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }

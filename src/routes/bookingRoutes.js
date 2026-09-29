@@ -7,6 +7,7 @@ import {
   getMyBookings,
   getEmployeeOpenSlots 
 } from "../controller/bookingController.js";
+import { getAiQuestions, generateAiQuestions } from "../controller/aiQuestionController.js";
 
 const router = express.Router();
 
@@ -16,4 +17,9 @@ router.post("/verify-payment", verifyToken, authorize("CANDIDATE"), verifyBookin
 router.get("/my-bookings", verifyToken, authorize("CANDIDATE"), getMyBookings);
 
 router.get("/employee/:employeeProfileId/slots", verifyToken, authorize("CANDIDATE"), getEmployeeOpenSlots);
+
+
+router.get("/:bookingId/ai-questions", verifyToken, authorize("EMPLOYEE"),  getAiQuestions);
+router.post("/:bookingId/ai-questions", verifyToken, authorize("EMPLOYEE"), generateAiQuestions);
+
 export default router;
