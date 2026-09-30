@@ -268,7 +268,7 @@ export const getEmployeesByCategory = async (req, res) => {
  */
 export const createBookingOrder = async (req, res) => {
   try {
-    const { slotId } = req.body;
+    const { slotId, categoryId } = req.body;
 
     if (!slotId) {
       return res.status(400).json({
@@ -360,6 +360,41 @@ export const createBookingOrder = async (req, res) => {
     }
 
     // --------------------------------------------------------
+    // 4b. Validate chosen category (optional for now)
+    // The interviewer must actually offer this category
+    // --------------------------------------------------------
+
+    let validCategoryId = null;
+
+    if (categoryId !== undefined && categoryId !== null && categoryId !== "") {
+      if (typeof categoryId !== "string") {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid category",
+        });
+      }
+
+      const offered = await prisma.employeeCategory.findUnique({
+        where: {
+          employeeProfileId_categoryId: {
+            employeeProfileId: slot.employeeProfileId,
+            categoryId,
+          },
+        },
+      });
+
+      if (!offered) {
+        return res.status(400).json({
+          success: false,
+          message: "This interviewer does not offer the selected category",
+        });
+      }
+
+      validCategoryId = categoryId;
+    }
+
+
+    // --------------------------------------------------------
     // 5. Maximum bookings with same employee — capped per rolling week
     // --------------------------------------------------------
 
@@ -449,6 +484,7 @@ export const createBookingOrder = async (req, res) => {
           candidateProfileId: candidateProfile.id,
           employeeProfileId: slot.employeeProfileId,
           slotId: slot.id,
+          categoryId: validCategoryId,
           amount: BOOKING_AMOUNT_RUPEES,
           status: "PENDING_PAYMENT",
           razorpayOrderId: razorpayOrder.id,

@@ -8,6 +8,7 @@ import {
   getEmployeeOpenSlots 
 } from "../controller/bookingController.js";
 import { getAiQuestions, generateAiQuestions } from "../controller/aiQuestionController.js";
+import { toggleShare } from "../controller/scorecardController.js";
 
 const router = express.Router();
 
@@ -22,4 +23,5 @@ router.get("/employee/:employeeProfileId/slots", verifyToken, authorize("CANDIDA
 router.get("/:bookingId/ai-questions", verifyToken, authorize("EMPLOYEE"),  getAiQuestions);
 router.post("/:bookingId/ai-questions", verifyToken, authorize("EMPLOYEE"), generateAiQuestions);
 
+router.patch("/:bookingId/share", verifyToken, authorize("CANDIDATE"),  toggleShare);
 export default router;

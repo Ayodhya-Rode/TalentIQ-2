@@ -53,6 +53,7 @@ model Category {
   createdAt DateTime @default(now())
 
   employeeCategories EmployeeCategory[]
+  bookings           Booking[]
 }
 
 // to creates EmployeeProfile
@@ -207,6 +208,13 @@ model Booking {
   aiQuestions            Json?    // last generated set 
   aiQuestionsGeneratedAt DateTime?  // drives the "generated X min ago" label.
   aiQuestionsCount       Int       @default(0)  // enforces the 3-generation cap.
+
+  shareToken   String?   @unique    // Random string to add in public url for candidate scorecard.
+  shareEnabled Boolean   @default(false)  // Toggle
+  sharedAt     DateTime?          // last shared
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt

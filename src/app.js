@@ -15,8 +15,11 @@ import queryRoutes from "./routes/queryRoutes.js";
 import supportRoutes from "./routes/supportRoutes.js";
 import multer from "multer";
 import prisma from "./config/db.js";
+import publicRoutes from "./routes/publicRoutes.js";
 
 const app = express();
+
+app.set("trust proxy", 1);
 
 // To prevent brute-force attacks, we can limit the number of requests to authentication routes
 const authLimiter = rateLimit({
@@ -59,6 +62,7 @@ app.use("/api/interviews", interviewRoutes);
 app.use("/api/recruiter", recruiterRoutes);
 app.use("/api/queries", queryRoutes);
 app.use("/api/support", supportRoutes);
+app.use("/api/public", publicRoutes)
 
 app.get("/api/health", async (req, res) => {
   try {
