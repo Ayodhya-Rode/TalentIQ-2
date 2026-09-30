@@ -1,4 +1,4 @@
-import prisma from "../config/db.js"; // CHANGE: same prisma import as your other controllers
+import prisma from "../config/db.js";
 import { getCandidateContext } from "../utils/candidateContext.js";
 import config from "../config/config.js";
 
@@ -36,7 +36,9 @@ const cleanGroup = (arr, limit) =>
     .slice(0, limit)
     .map((q) => ({
       question: q.question.trim(),
-      difficulty: ["easy", "medium", "hard"].includes(q.difficulty) ? q.difficulty : "medium",
+      difficulty: ["easy", "medium", "hard"].includes(q.difficulty)
+        ? q.difficulty
+        : "medium",
       why: typeof q.why === "string" ? q.why.trim() : "",
     }));
 
@@ -45,7 +47,7 @@ const callGroq = async (userPrompt) => {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${config.groq_api_key}`, 
+      Authorization: `Bearer ${config.groq_api_key}`,
     },
     body: JSON.stringify({
       model: MODEL,
@@ -69,7 +71,8 @@ const callGroq = async (userPrompt) => {
     project: cleanGroup(parsed.project, 3),
     followUps: cleanGroup(parsed.followUps, 2),
   };
-  const total = result.technical.length + result.project.length + result.followUps.length;
+  const total =
+    result.technical.length + result.project.length + result.followUps.length;
   if (total < 5) throw new Error("AI returned too few valid questions");
   return result;
 };
@@ -79,7 +82,10 @@ const loadOwnedBooking = async (bookingId, userId) => {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
     include: {
-      employeeProfile: { include: { categories: { include: { category: true } } } },
+      category: true,
+      employeeProfile: {
+        include: { categories: { include: { category: true } } },
+      },
       candidateProfile: { include: { projects: true } },
     },
   });
@@ -90,12 +96,19 @@ const loadOwnedBooking = async (bookingId, userId) => {
 };
 
 const flatten = (set) =>
-  set ? [...set.technical, ...set.project, ...set.followUps].map((q) => q.question) : [];
+  set
+    ? [...set.technical, ...set.project, ...set.followUps].map(
+        (q) => q.question,
+      )
+    : [];
 
 // GET saved questions (no AI call)
 export const getAiQuestions = async (req, res) => {
   try {
-    const { booking, error } = await loadOwnedBooking(req.params.bookingId, req.user.userId);
+    const { booking, error } = await loadOwnedBooking(
+      req.params.bookingId,
+      req.user.userId,
+    );
     if (error) return res.status(error.status).json({ message: error.message });
 
     res.json({
@@ -114,15 +127,26 @@ export const generateAiQuestions = async (req, res) => {
   const { bookingId } = req.params;
   let claimed = false;
   try {
-    const { booking, error } = await loadOwnedBooking(bookingId, req.user.userId);
+    const { booking, error } = await loadOwnedBooking(
+      bookingId,
+      req.user.userId,
+    );
     if (error) return res.status(error.status).json({ message: error.message });
 
     if (booking.status !== "CONFIRMED")
-      return res.status(400).json({ message: "Questions can only be generated for confirmed interviews" });
+      return res
+        .status(400)
+        .json({
+          message: "Questions can only be generated for confirmed interviews",
+        });
 
     const context = await getCandidateContext(booking.candidateProfile);
     if (context.source === "none")
-      return res.status(400).json({ message: "Candidate has no resume or profile data to work from" });
+      return res
+        .status(400)
+        .json({
+          message: "Candidate has no resume or profile data to work from",
+        });
 
     // Atomically claim one generation. Blocks races and enforces the cap.
     const claim = await prisma.booking.updateMany({
@@ -130,12 +154,21 @@ export const generateAiQuestions = async (req, res) => {
       data: { aiQuestionsCount: { increment: 1 } },
     });
     if (claim.count === 0)
-      return res.status(429).json({ message: `Limit of ${MAX_GENERATIONS} generations reached` });
+      return res
+        .status(429)
+        .json({ message: `Limit of ${MAX_GENERATIONS} generations reached` });
     claimed = true;
 
-    const focusAreas = booking.employeeProfile.categories.map((c) => c.category.name);
+    const focusAreas = booking.category
+      ? [booking.category.name]
+      : booking.employeeProfile.categories.map((c) => c.category.name);
+
     const questions = await callGroq(
-      buildUserPrompt({ context, focusAreas, previous: flatten(booking.aiQuestions) })
+      buildUserPrompt({
+        context,
+        focusAreas,
+        previous: flatten(booking.aiQuestions),
+      }),
     );
 
     const updated = await prisma.booking.update({
@@ -154,9 +187,14 @@ export const generateAiQuestions = async (req, res) => {
     // Give the attempt back if the AI call failed
     if (claimed) {
       await prisma.booking
-        .update({ where: { id: bookingId }, data: { aiQuestionsCount: { decrement: 1 } } })
+        .update({
+          where: { id: bookingId },
+          data: { aiQuestionsCount: { decrement: 1 } },
+        })
         .catch(() => {});
     }
-    res.status(502).json({ message: "AI generation failed. Please try again." });
+    res
+      .status(502)
+      .json({ message: "AI generation failed. Please try again." });
   }
 };
