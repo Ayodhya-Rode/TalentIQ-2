@@ -165,11 +165,10 @@ export const getScorecardPreview = async (req, res) => {
     if (!data) return res.redirect(302, target);
 
     const domain = data.domains[0];
-    const title = `${data.candidateName} scored ${data.score}/${data.maxScore} in a${
-      domain ? ` ${domain}` : ""
-    } mock interview`;
-    const description =
-      "Practice interview scorecard on TalentIQ. Open the link to see the full scorecard.";
+    const title = `${data.candidateName} scored ${data.score}/${data.maxScore} in a mock interview`;
+    const description = `${
+      domain ? `${domain} practice interview` : "Practice interview"
+    } scorecard on TalentIQ. Open the link to see the full scorecard.`;
     const image = `${base}/og-image.png`;
     const pageUrl = `${base}/s/${encodeURIComponent(token)}`;
     const jsTarget = JSON.stringify(target).replace(/</g, "\\u003c");
@@ -179,6 +178,7 @@ export const getScorecardPreview = async (req, res) => {
 <head>
 <meta charset="utf-8" />
 <title>${escapeHtml(title)}</title>
+<meta name="description" content="${escapeHtml(description)}" />
 <meta name="robots" content="noindex, nofollow" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="TalentIQ" />
